@@ -11,6 +11,8 @@
 <link rel="manifest" href="manifest.json"/>
 <link rel="apple-touch-icon" href="icons/icon-192.png"/>
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet"/>
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-messaging-compat.js"></script>
 <style>
 :root {
   --bg: #0d1520;
@@ -482,13 +484,16 @@ textarea.fi{resize:vertical;min-height:80px}
 
     <!-- MY DUTIES -->
     <div class="tab-panel" id="tab-myduties">
-      <div class="month-nav">
+     <div class="month-nav">
         <button class="nav-arrow" onclick="mdPrev()">‹</button>
-        <div style="text-align:center">
+        <div style="text-align:center;flex:1">
           <div class="mn-title" id="md-month-title">--</div>
-          <div class="mn-nepali" id="md-month-nepali">--</div>
         </div>
         <button class="nav-arrow" onclick="mdNext()">›</button>
+      </div>
+      <div style="display:flex;justify-content:space-between;align-items:center;padding:6px 16px 8px;border-bottom:1px solid var(--border);flex-shrink:0">
+        <span id="md-today-en" style="font-size:12px;color:var(--text2)"></span>
+        <span id="md-today-np" style="font-size:12px;color:var(--accent);font-weight:600"></span>
       </div>
       <div id="md-list" style="flex:1;overflow-y:auto"></div>
     </div>
@@ -765,7 +770,7 @@ const S = {
   rosters: {},
   staff: {observer:[],forecaster:[],sdm:[]},
   scriptUrl: '',
-  adminCreds: {username:'admin',pin:'1234'},
+  adminCreds: {username:'',pin:''},
   subAdmins: [],
   currentAdmin: null,
   calYear: new Date().getFullYear(),
@@ -793,6 +798,8 @@ const DUTY_NAMES = {
   'MA'   : 'Morning Aviation Forecaster',
   'DA'   : 'Day Aviation Forecaster',
   // ── Sr. Div. Met. ──
+  'AFN*' : 'Day Night Forecaster★',
+  'NMF*' : 'Night Morning Forecaster★',
   'SM'   : 'Sr. Met. Morning',
   'SA'   : 'Sr. Met. Afternoon',
   'SD'   : 'Sr. Met. Day',
@@ -829,9 +836,9 @@ const DUTY_TIMES = {
   'MO1'  : '6:00 AM – 12:00 PM',
   'AO2'  : '12:00 PM – 6:00 PM',
   'AFN*' : '12:00 PM – next day 12:00 PM (24 hrs)',
-  'NMF*' : '12:00 PM – next day 12:00 PM (24 hrs)',
+  'NMF*' : 'Previous Day 12:00 PM – Today 12:00 PM (24 hrs)',
   'AON*' : '12:00 PM – next day 12:00 PM (24 hrs)',
-  'NMO*' : '12:00 PM – next day 12:00 PM (24 hrs)',
+  'NMO*' : 'Previous Day 12:00 PM – Today 12:00 PM (24 hrs)',
   'XX'   : '',
   'xx'   : '',
   ''     : ''
@@ -847,8 +854,13 @@ function initials(name){ return (name||'??').split(' ').map(w=>w[0]).join('').to
 function isOff(s){ return !s||s==='xx'||s==='XX'; }
 function dutyLabel(s){ return DUTY_NAMES[s]||s||'Day off'; }
 function toISO(d){ return d.toISOString().slice(0,10); }
-function todayISO(){ return toISO(new Date()); }
-
+function todayISO(){
+  const now = new Date();
+  const nepalOffset = 5 * 60 + 45;
+  const utcMs = now.getTime() + (now.getTimezoneOffset() * 60000);
+  const nepalMs = utcMs + (nepalOffset * 60000);
+  return toISO(new Date(nepalMs));
+}
 // ═══════════════════════════════
 // INIT
 // ═══════════════════════════════
@@ -1053,7 +1065,9 @@ function switchAdminTab(tab,el){
 // ═══════════════════════════════
 function renderToday(){
   if(!S.user) return;
-  const now=new Date();
+  const nepalOffset = 5 * 60 + 45;
+const utcMs = new Date().getTime() + (new Date().getTimezoneOffset() * 60000);
+const now = new Date(utcMs + (nepalOffset * 60000));
   const iso=todayISO();
   const npDate=toNepali(iso);
   document.getElementById('today-month-line').textContent=MONTHS[now.getMonth()]+' '+now.getFullYear();
@@ -1147,6 +1161,11 @@ function renderMyDuties(){
   const {name,role}=S.user;
   const isoPrefix=`${S.mdYear}-${String(S.mdMonth+1).padStart(2,'0')}`;
   document.getElementById('md-month-title').textContent=MONTHS[S.mdMonth]+' '+S.mdYear;
+  const todayEn=document.getElementById('md-today-en');
+  const todayNp=document.getElementById('md-today-np');
+  const nowD = new Date(new Date().getTime()+(new Date().getTimezoneOffset()*60000)+((5*60+45)*60000));
+  if(todayEn) todayEn.textContent=DAYS[nowD.getDay()]+', '+String(nowD.getDate()).padStart(2,'0')+'/'+String(nowD.getMonth()+1).padStart(2,'0')+'/'+nowD.getFullYear();
+  if(todayNp) todayNp.textContent=toNepali(todayISO());
 
   const months=getMonthsForRole(role);
   // Find the month that contains this year-month
@@ -1174,10 +1193,11 @@ function renderMyDuties(){
     const shift=day.duties?day.duties[name]:'';
     const off=isOff(shift);
     const npD=toNepali(iso);
-    html+=`<div class="duty-day-row" onclick="showDayModal('${iso}', null)">
+    const isToday=iso===todayISO();
+    html+=`<div class="duty-day-row" onclick="showDayModal('${iso}', null)" style="${isToday?'background:rgba(56,189,248,.07);border-left:3px solid var(--accent);':''}">
       <div class="ddr-left">
-        <span class="ddr-dow">${DAYS[dt.getDay()]}</span>
-        <span class="ddr-date" style="color:var(--accent);font-weight:700">${npD}</span>
+        <span class="ddr-dow" style="${isToday?'color:var(--accent);font-weight:700':''}">${DAYS[dt.getDay()]}</span>
+        <span class="ddr-date" style="color:var(--accent);font-weight:${isToday?'800':'700'};font-size:${isToday?'18px':'16px'}">${npD}</span>
         <span class="ddr-nepali">${String(m).padStart(2,'0')}/${String(d).padStart(2,'0')}</span>
       </div>
       <div class="ddr-right">
@@ -1307,25 +1327,27 @@ async function doAdminLogin(){
   const u=document.getElementById('al-user').value.trim();
   const p=document.getElementById('al-pin').value.trim();
   const err=document.getElementById('al-err');
-  err.textContent='';
+  err.textContent='⏳ Checking credentials...';
 
   let ok=false, adminName='', isMaster=false;
 
-  // ALWAYS check server first so password changes on one browser work everywhere
+  // ALWAYS check Google Sheets first - so password changes sync across all browsers
   if(S.scriptUrl){
     try{
-      const res=await fetch(S.scriptUrl+'?action=getCreds');
+      const controller=new AbortController();
+      const timeout=setTimeout(()=>controller.abort(),5000);
+      const res=await fetch(S.scriptUrl+'?action=getCreds',{signal:controller.signal});
+      clearTimeout(timeout);
       const d=await res.json();
-      if(u===(d.username||'admin')&&p===(d.pin||'1234')){
+      if(d.username&&d.pin&&u===d.username&&p===d.pin){
         ok=true; adminName=u+' (Master)'; isMaster=true;
-        // Update local cache
-        S.adminCreds={username:d.username||'admin',pin:d.pin||'1234'};
+        S.adminCreds={username:d.username,pin:d.pin};
         localStorage.setItem('mfd_admin',JSON.stringify(S.adminCreds));
       }
     }catch(e){}
   }
   // Fallback to local if server unreachable
-  if(!ok && u===S.adminCreds.username && p===S.adminCreds.pin){ ok=true; adminName=u+' (Master)'; isMaster=true; }
+  if(!ok && S.adminCreds.username && S.adminCreds.pin && u===S.adminCreds.username && p===S.adminCreds.pin){ ok=true; adminName=u+' (Master)'; isMaster=true; }
   // Check sub-admins
   if(!ok){ const sa=S.subAdmins.find(a=>a.username===u&&a.pin===p); if(sa){ok=true;adminName=sa.username;} }
 
@@ -1734,7 +1756,7 @@ async function saveEditedRoster(){
 // ADMIN — ADMINS TAB
 // ═══════════════════════════════
 function renderAdminsTab(){
-  document.getElementById('ma-user').value=S.adminCreds.username||'admin';
+  document.getElementById('ma-user').value=S.adminCreds.username||'';
   const el=document.getElementById('sub-admin-list');
   if(!S.subAdmins.length){el.innerHTML='<div style="color:var(--text3);font-size:13px">No sub-admins yet.</div>';return;}
   el.innerHTML=S.subAdmins.map((sa,i)=>`
@@ -1769,13 +1791,19 @@ async function saveMasterCreds(){
   localStorage.setItem('mfd_admin',JSON.stringify(S.adminCreds));
   // Save to Google Sheets so ALL browsers get the new password
   if(S.scriptUrl&&p){
-    showToast('Syncing credentials...',50);
+    showToast('Syncing credentials to cloud...',50);
     try{
-      await fetch(S.scriptUrl,{method:'POST',mode:'no-cors',body:JSON.stringify({action:'saveCreds',username:u,pin:p})});
+      await fetch(S.scriptUrl,{method:'POST',mode:'no-cors',
+        body:JSON.stringify({action:'saveCreds',username:u,pin:p})});
       showToast('✅ Saved to cloud!',100); setTimeout(hideToast,1500);
-    }catch(e){ hideToast(); }
+      alert('✅ Password changed! All browsers will get new password on next login.');
+    }catch(e){
+      hideToast();
+      alert('✅ Saved locally. Check internet connection.');
+    }
+  } else {
+    alert('✅ Username saved!');
   }
-  alert('✅ Credentials saved! All browsers will use the new password.');
 }
 
 function addSubAdmin(){
@@ -1832,9 +1860,26 @@ async function toggleNotifFromIcon(){
     if(!('Notification' in window)){alert('Browser does not support notifications.');return;}
     const perm=await Notification.requestPermission();
     if(perm!=='granted'){alert('Permission denied.');return;}
-    const token='device_'+Date.now()+'_'+Math.random().toString(36).slice(2);
-    S.fcmToken=token; localStorage.setItem('mfd_fcm',token);
-    await regToken(token);
+   try {
+  const app = firebase.initializeApp({
+    apiKey: "AIzaSyCAjEiQQkBeVEzzzTorNVgWg3RIgi7Tz54",
+    authDomain: "mfd-roster.firebaseapp.com",
+    projectId: "mfd-roster",
+    messagingSenderId: "757155484481",
+    appId: "1:757155484481:web:42046945a74ce853de07c0"
+  });
+  const messaging = firebase.messaging();
+  const token = await messaging.getToken({
+    vapidKey: 'BFsAYUzrl_Jrq8QIt0aW_4Mf6C86KYIHIYo5B-4Pz3eD2Lt15aL3R_zmw1TLjMEJzYOE-cyXFvJrYR1eSYBzsIU'  // ← get this from Firebase Console
+  });
+  S.fcmToken = token;
+  localStorage.setItem('mfd_fcm', token);
+  await regToken(token);
+  updateNotifIcon();
+  alert('✅ Notifications enabled!');
+} catch(err) {
+  alert('❌ FCM Error: ' + err.message);
+}
     updateNotifIcon();
     alert('✅ Notifications enabled!\nYou will receive alerts at 5:30 AM and 8:30 PM daily.');
   }
@@ -1905,8 +1950,7 @@ async function submitSwapRequest(){
       })
     });
     document.getElementById('swap-modal').style.display='none';
-    alert('✅ Request sent to Admin!
-Admin लाई अनुरोध पठाइयो।');
+    alert('✅ Request sent to Admin! Admin लाई अनुरोध पठाइयो।');
   }catch(e){
     errEl.textContent='❌ Failed to send. Check connection.';
   }
@@ -1974,26 +2018,44 @@ async function submitNewPin(){
       body:JSON.stringify({action:'saveCreds',username:u,pin:p1})});
   }catch(e){}
   document.getElementById('reset-pin-modal').style.display='none';
-  alert('✅ Password changed successfully! All browsers updated.');
+  alert('✅ Password changed successfully! All browsers will use the new password.');
 }
 
 // ══ FIX 2: NEPALI DATE HELPER ══
 // Nepali date lookup table (BS dates for 2026)
 const NP_MONTHS = ['बैशाख','जेठ','असार','साउन','भदौ','असोज','कार्तिक','मंसिर','पुष','माघ','फागुन','चैत'];
+const BS_DATA = [
+  [2080, 31,32,31,32,31,30,30,30,29,29,30,31],
+  [2081, 31,31,32,32,31,30,30,30,29,30,30,30],
+  [2082, 31,32,31,32,31,30,30,30,29,30,30,31],
+  [2083, 31,31,32,31,31,31,30,29,30,29,30,30],
+  [2084, 31,31,32,32,31,30,30,29,30,29,30,30], 
+  [2085, 31,32,31,32,31,30,30,30,29,30,29,31],
+];
 function toNepali(iso){
   if(!iso) return '';
-  // Simple offset: 2026-04-14 = 2083 Baisakh 1
-  const base = new Date('2026-04-14');
-  const dt = new Date(iso);
-  const diff = Math.round((dt - base)/(1000*60*60*24));
-  // BS month lengths for 2083
-  const bsMonths = [31,32,31,32,31,30,30,30,29,30,29,31]; // 2083 BS
-  let day=1, month=0, rem=diff;
-  while(rem>=bsMonths[month]){rem-=bsMonths[month];month++; if(month>=12){month=0;day=1;}}
-  day+=rem;
-  const npNums = ['०','१','२','३','४','५','६','७','८','९'];
-  const toNpNum = n => String(n).split('').map(d=>npNums[parseInt(d)]).join('');
-  return toNpNum(day)+' '+NP_MONTHS[month];
+  const npNums=['०','१','२','३','४','५','६','७','८','९'];
+  const toNpNum=n=>String(n).split('').map(d=>npNums[parseInt(d)]).join('');
+  const refAD=new Date('2026-04-14');
+  const dt=new Date(iso);
+  const adDiff=Math.round((Date.UTC(dt.getFullYear(),dt.getMonth(),dt.getDate())-Date.UTC(refAD.getFullYear(),refAD.getMonth(),refAD.getDate()))/86400000);
+  let bsY=2083,bsM=0,bsD=1,rem=adDiff;
+  if(rem>=0){
+    while(rem>0){
+      const yr=BS_DATA.find(r=>r[0]===bsY);if(!yr)break;
+      const dim=yr[bsM+1],dl=dim-bsD;
+      if(rem<=dl){bsD+=rem;rem=0;}
+      else{rem-=(dl+1);bsD=1;bsM++;if(bsM>=12){bsM=0;bsY++;}}
+    }
+  } else {
+    rem=-rem;
+    while(rem>0){
+      if(bsD>rem){bsD-=rem;rem=0;}
+      else{rem-=bsD;bsM--;if(bsM<0){bsM=11;bsY--;}
+      const yr=BS_DATA.find(r=>r[0]===bsY);bsD=yr?yr[bsM+1]:30;}
+    }
+  }
+  return toNpNum(bsD)+' '+NP_MONTHS[bsM];
 }
 
 function registerSW(){
