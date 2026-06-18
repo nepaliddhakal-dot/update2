@@ -1159,55 +1159,123 @@ function mdNext(){
 function renderMyDuties(){
   if(!S.user) return;
   const {name,role}=S.user;
-  const isoPrefix=`${S.mdYear}-${String(S.mdMonth+1).padStart(2,'0')}`;
-  // Get Nepali month name from first day of this English month
-const firstISO = `${S.mdYear}-${String(S.mdMonth+1).padStart(2,'0')}-01`;
-const npTitle = toNepali(firstISO);
-document.getElementById('md-month-title').textContent = npTitle + ' / ' + MONTHS[S.mdMonth]+' '+S.mdYear;
-  const todayEn=document.getElementById('md-today-en');
-  const todayNp=document.getElementById('md-today-np');
+
+  // ── Build header: show Nepali month name + BS year / English month(s) + year ──
+  const firstISO = `${S.mdYear}-${String(S.mdMonth+1).padStart(2,'0')}-15`;
+  const lastISO  = `${S.mdYear}-${String(S.mdMonth+1).padStart(2,'0')}-28`;
+  const npFirst  = toNepaliFull(firstISO);  // e.g. "असार २०८३"
+  const npLast   = toNepaliFull(lastISO);   // may differ at month boundary
+  const npHeader = npFirst === npLast ? npFirst : npFirst + ' / ' + npLast;
+
+  // English: check if roster spans two English months (Nepali month crosses boundary)
+  const isoPrefix = `${S.mdYear}-${String(S.mdMonth+1).padStart(2,'0')}`;
+  document.getElementById('md-month-title').textContent = npHeader + '   ' + MONTHS[S.mdMonth] + ' ' + S.mdYear;
+
+  // ── Today bar ──
+  const todayEn = document.getElementById('md-today-en');
+  const todayNp = document.getElementById('md-today-np');
   const nowD = new Date(new Date().getTime()+(new Date().getTimezoneOffset()*60000)+((5*60+45)*60000));
-  if(todayEn) todayEn.textContent=DAYS[nowD.getDay()]+', '+String(nowD.getDate()).padStart(2,'0')+'/'+String(nowD.getMonth()+1).padStart(2,'0')+'/'+nowD.getFullYear();
-  if(todayNp) todayNp.textContent=toNepali(todayISO());
+  if(todayEn) todayEn.textContent = DAYS[nowD.getDay()]+', '+String(nowD.getDate()).padStart(2,'0')+'/'+String(nowD.getMonth()+1).padStart(2,'0')+'/'+nowD.getFullYear();
+  if(todayNp) todayNp.textContent = toNepali(todayISO());
 
-  const months=getMonthsForRole(role);
-  // Find the month that contains this year-month
-  let days=[];
+  // ── Collect days ──
+  // Show ALL days from the roster that fall in this English month
+  const months = getMonthsForRole(role);
+  let days = [];
   for(const m of months){
-    const mDays=(m.days||[]).filter(d=>(d.date||d.isoDate||'').startsWith(isoPrefix));
-    days=[...days,...mDays];
+    const mDays = (m.days||[]).filter(d => (d.date||d.isoDate||'').startsWith(isoPrefix));
+    days = [...days, ...mDays];
   }
-  days.sort((a,b)=>(a.date||a.isoDate).localeCompare(b.date||b.isoDate));
+  days.sort((a,b) => (a.date||a.isoDate).localeCompare(b.date||b.isoDate));
 
-  const listEl=document.getElementById('md-list');
+  const listEl = document.getElementById('md-list');
   if(!days.length){
-    listEl.innerHTML='<div style="padding:30px;text-align:center;color:var(--text3);font-size:13px">No duties found for this month.</div>';
+    listEl.innerHTML = '<div style="padding:30px;text-align:center;color:var(--text3);font-size:13px">No duties found for this month.</div>';
     return;
   }
 
-  // Group by week
-  let html=''; let week=0; let lastWeek=-1;
+  // ── Render rows — weeks start on SUNDAY ──
+  let html = '';
+  let lastWeekNum = -1;
+
   for(const day of days){
-    const iso=day.date||day.isoDate;
-    const [y,m,d]=iso.split('-').map(Number);
-    const dt=new Date(y,m-1,d);
-    const wk=Math.ceil(d/7);
-    if(wk!==lastWeek){ html+=`<div class="week-label">WEEK ${wk}</div>`; lastWeek=wk; }
-    const shift=day.duties?day.duties[name]:'';
-    const off=isOff(shift);
-    const npD=toNepali(iso);
-    const isToday=iso===todayISO();
-    html+=`<div class="duty-day-row" onclick="showDayModal('${iso}', null)" style="${isToday?'background:rgba(56,189,248,.07);border-left:3px solid var(--accent);':''}">
+    const iso = day.date || day.isoDate;
+    const [y,m,d] = iso.split('-').map(Number);
+    const dt = new Date(y, m-1, d);
+
+    // Week number based on Sunday as first day of week
+    // getDay() returns 0=Sun … 6=Sat already, so Sunday starts a new week
+    const dayOfYear = Math.floor((dt - new Date(y, 0, 1)) / 86400000);
+    const firstDayOfYear = new Date(y, 0, 1).getDay(); // 0=Sun
+    const weekNum = Math.floor((dayOfYear + firstDayOfYear) / 7) + 1;
+
+    if(weekNum !== lastWeekNum){
+      html += `<div class="week-label">WEEK ${weekNum}</div>`;
+      lastWeekNum = weekNum;
+    }
+
+    const shift  = day.duties ? day.duties[name] : '';
+    const off    = isOff(shift);
+    const npD    = toNepali(iso);
+    const isToday = iso === todayISO();
+
+    // Nepali date as main display, English date as sub
+    html += `<div class="duty-day-row" onclick="showDayModal('${iso}', null)"
+      style="${isToday ? 'background:rgba(56,189,248,.07);border-left:3px solid var(--accent);' : ''}">
       <div class="ddr-left">
-        <span class="ddr-dow" style="${isToday?'color:var(--accent);font-weight:700':''}">${DAYS[dt.getDay()]}</span>
+        <span class="ddr-dow" style="${isToday ? 'color:var(--accent);font-weight:700' : ''}">${DAYS[dt.getDay()]}</span>
         <span class="ddr-date" style="color:var(--accent);font-weight:${isToday?'800':'700'};font-size:${isToday?'18px':'16px'}">${npD}</span>
         <span class="ddr-nepali">${String(m).padStart(2,'0')}/${String(d).padStart(2,'0')}</span>
       </div>
       <div class="ddr-right">
-        <span class="shift-pill ${off?'off':'on'}">${off?'Day off':shift}</span>
+        <span class="shift-pill ${off ? 'off' : 'on'}">${off ? 'Day off' : shift}</span>
       </div>
     </div>`;
   }
+
+  listEl.innerHTML = html;
+
+  // ── Monthly Summary card ──
+  const summaryMap = {};
+  let totalDays = 0;
+  for(const day of days){
+    const shift = day.duties ? day.duties[name] : '';
+    const key   = isOff(shift) ? 'Day Off' : (shift || 'Day Off');
+    summaryMap[key] = (summaryMap[key] || 0) + 1;
+    totalDays++;
+  }
+
+  const summaryEntries = Object.entries(summaryMap).sort((a,b) => b[1] - a[1]);
+  const summaryRows = summaryEntries.map(([shift, count]) => {
+    const isDayOff = shift === 'Day Off';
+    const label    = DUTY_NAMES[shift] || shift;
+    const time     = DUTY_TIMES[shift] || '';
+    return `<div style="display:flex;align-items:center;justify-content:space-between;padding:8px 0;border-bottom:1px solid rgba(30,48,72,.5)">
+      <div>
+        <span style="font-size:13px;font-weight:600;color:${isDayOff ? 'var(--green)' : 'var(--accent)'}">${shift}</span>
+        <span style="font-size:11px;color:var(--text2);margin-left:8px">${label}</span>
+        ${time ? `<div style="font-size:10px;color:var(--text3);margin-top:2px">🕐 ${time}</div>` : ''}
+      </div>
+      <span style="font-size:18px;font-weight:700;color:${isDayOff ? 'var(--green)' : 'var(--accent)'}">${count}×</span>
+    </div>`;
+  }).join('');
+
+  listEl.innerHTML += `
+    <div style="margin:16px 12px 24px;background:var(--card2);border:1px solid var(--border2);border-radius:var(--radius);padding:14px">
+      <div style="font-size:12px;font-weight:700;color:var(--text2);letter-spacing:1px;margin-bottom:10px">
+        📊 MONTHLY SUMMARY — ${totalDays} days
+      </div>
+      ${summaryRows}
+      <div style="margin-top:10px;padding-top:10px;border-top:1px solid var(--border);display:flex;justify-content:space-between;align-items:center">
+        <span style="font-size:12px;color:var(--text2)">On duty days</span>
+        <span style="font-size:15px;font-weight:700;color:var(--accent)">${totalDays - (summaryMap['Day Off']||0)}</span>
+      </div>
+      <div style="margin-top:6px;display:flex;justify-content:space-between;align-items:center">
+        <span style="font-size:12px;color:var(--text2)">Day off days</span>
+        <span style="font-size:15px;font-weight:700;color:var(--green)">${summaryMap['Day Off']||0}</span>
+      </div>
+    </div>`;
+}
   listEl.innerHTML=html;
 // ── Monthly Summary ──
 const summaryMap = {};
@@ -2078,30 +2146,30 @@ const BS_DATA = [
   [2084, 31,31,32,32,31,30,30,29,30,29,30,30], 
   [2085, 31,32,31,32,31,30,30,30,29,30,29,31],
 ];
-function toNepali(iso){
+function toNepaliFull(iso){
   if(!iso) return '';
-  const npNums=['०','१','२','३','४','५','६','७','८','९'];
-  const toNpNum=n=>String(n).split('').map(d=>npNums[parseInt(d)]).join('');
-  const refAD=new Date('2026-04-14');
-  const dt=new Date(iso);
-  const adDiff=Math.round((Date.UTC(dt.getFullYear(),dt.getMonth(),dt.getDate())-Date.UTC(refAD.getFullYear(),refAD.getMonth(),refAD.getDate()))/86400000);
-  let bsY=2083,bsM=0,bsD=1,rem=adDiff;
-  if(rem>=0){
-    while(rem>0){
-      const yr=BS_DATA.find(r=>r[0]===bsY);if(!yr)break;
-      const dim=yr[bsM+1],dl=dim-bsD;
-      if(rem<=dl){bsD+=rem;rem=0;}
-      else{rem-=(dl+1);bsD=1;bsM++;if(bsM>=12){bsM=0;bsY++;}}
+  const npNums = ['०','१','२','३','४','५','६','७','८','९'];
+  const toNpNum = n => String(n).split('').map(d => npNums[parseInt(d)]).join('');
+  const refAD = new Date('2026-04-14');
+  const dt = new Date(iso);
+  const adDiff = Math.round((Date.UTC(dt.getFullYear(),dt.getMonth(),dt.getDate()) - Date.UTC(refAD.getFullYear(),refAD.getMonth(),refAD.getDate())) / 86400000);
+  let bsY=2083, bsM=0, bsD=1, rem=adDiff;
+  if(rem >= 0){
+    while(rem > 0){
+      const yr = BS_DATA.find(r => r[0]===bsY); if(!yr) break;
+      const dim = yr[bsM+1], dl = dim - bsD;
+      if(rem <= dl){ bsD += rem; rem = 0; }
+      else{ rem -= (dl+1); bsD = 1; bsM++; if(bsM >= 12){ bsM=0; bsY++; } }
     }
   } else {
-    rem=-rem;
-    while(rem>0){
-      if(bsD>rem){bsD-=rem;rem=0;}
-      else{rem-=bsD;bsM--;if(bsM<0){bsM=11;bsY--;}
-      const yr=BS_DATA.find(r=>r[0]===bsY);bsD=yr?yr[bsM+1]:30;}
+    rem = -rem;
+    while(rem > 0){
+      if(bsD > rem){ bsD -= rem; rem = 0; }
+      else{ rem -= bsD; bsM--; if(bsM < 0){ bsM=11; bsY--; }
+      const yr = BS_DATA.find(r => r[0]===bsY); bsD = yr ? yr[bsM+1] : 30; }
     }
   }
-  return toNpNum(bsD)+' '+NP_MONTHS[bsM];
+  return NP_MONTHS[bsM] + ' ' + toNpNum(bsY);
 }
 
 function registerSW(){
