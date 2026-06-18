@@ -1276,52 +1276,7 @@ function renderMyDuties(){
       </div>
     </div>`;
 }
-  listEl.innerHTML=html;
-// ── Monthly Summary ──
-const summaryMap = {};
-let totalDays = 0;
-for(const day of days){
-  const iso = day.date || day.isoDate;
-  const shift = day.duties ? day.duties[name] : '';
-  const key = isOff(shift) ? 'Day Off' : (shift || 'Day Off');
-  summaryMap[key] = (summaryMap[key] || 0) + 1;
-  totalDays++;
-}
-
-// Build summary HTML
-const summaryEntries = Object.entries(summaryMap).sort((a,b) => b[1]-a[1]);
-const summaryRows = summaryEntries.map(([shift, count]) => {
-  const isOff_ = shift === 'Day Off';
-  const label = DUTY_NAMES[shift] || shift;
-  const time = DUTY_TIMES[shift] || '';
-  return `<div style="display:flex;align-items:center;justify-content:space-between;padding:8px 0;border-bottom:1px solid rgba(30,48,72,.5)">
-    <div>
-      <span style="font-size:13px;font-weight:600;color:${isOff_?'var(--green)':'var(--accent)'}">${shift}</span>
-      <span style="font-size:11px;color:var(--text2);margin-left:8px">${label}</span>
-      ${time?`<div style="font-size:10px;color:var(--text3);margin-top:2px">🕐 ${time}</div>`:''}
-    </div>
-    <span style="font-size:18px;font-weight:700;color:${isOff_?'var(--green)':'var(--accent)'}">${count}x</span>
-  </div>`;
-}).join('');
-
-// Append summary card below the list
-listEl.innerHTML += `
-  <div style="margin:16px 12px 24px;background:var(--card2);border:1px solid var(--border2);border-radius:var(--radius);padding:14px">
-    <div style="font-size:12px;font-weight:700;color:var(--text2);letter-spacing:1px;margin-bottom:10px">
-      📊 MONTHLY SUMMARY — ${totalDays} days
-    </div>
-    ${summaryRows}
-    <div style="margin-top:10px;padding-top:10px;border-top:1px solid var(--border);display:flex;justify-content:space-between;align-items:center">
-      <span style="font-size:12px;color:var(--text2)">On duty days</span>
-      <span style="font-size:15px;font-weight:700;color:var(--accent)">${totalDays - (summaryMap['Day Off']||0)}</span>
-    </div>
-    <div style="margin-top:6px;display:flex;justify-content:space-between;align-items:center">
-      <span style="font-size:12px;color:var(--text2)">Day off days</span>
-      <span style="font-size:15px;font-weight:700;color:var(--green)">${summaryMap['Day Off']||0}</span>
-    </div>
-  </div>`;  
-}
-
+ 
 // ═══════════════════════════════
 // CALENDAR TAB
 // ═══════════════════════════════
