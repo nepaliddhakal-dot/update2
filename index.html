@@ -262,6 +262,14 @@ textarea.fi{resize:vertical;min-height:80px}
 ::-webkit-scrollbar{width:3px}
 ::-webkit-scrollbar-track{background:transparent}
 ::-webkit-scrollbar-thumb{background:var(--border);border-radius:2px}
+  /* Calendar legend */
+.cal-legend{display:flex;gap:10px;padding:5px 12px;font-size:10px;flex-shrink:0;border-bottom:1px solid var(--border);flex-wrap:wrap;}
+.cal-legend-item{display:flex;align-items:center;gap:4px;color:var(--text2);}
+.cal-legend-dot{width:8px;height:8px;border-radius:50%;flex-shrink:0;}
+/* Holiday cell */
+.cal-cell.holiday-cell{background:rgba(248,113,113,.07);}
+.cal-cell.weekend-cell{background:rgba(248,113,113,.03);}
+.cal-cell.useroff-cell{background:rgba(251,191,36,.08);}
 </style>
 </head>
 <body>
@@ -393,6 +401,22 @@ textarea.fi{resize:vertical;min-height:80px}
         </div>
         <button class="nav-arrow" onclick="calNext()">›</button>
       </div>
+
+  <!-- Legend — यहाँ थप्नु -->
+  <div class="cal-legend">
+    <div class="cal-legend-item">
+      <div class="cal-legend-dot" style="background:var(--red)"></div>सार्वजनिक बिदा
+    </div>
+    <div class="cal-legend-item">
+      <div class="cal-legend-dot" style="background:var(--red);opacity:.4"></div>शनि/आइत
+    </div>
+    <div class="cal-legend-item">
+      <div class="cal-legend-dot" style="background:var(--yellow)"></div>मेरो Day Off
+    </div>
+    <div class="cal-legend-item">
+      <div class="cal-legend-dot" style="background:var(--accent)"></div>आज
+    </div>
+  </div>
       <div class="cal-grid-wrap">
         <div class="cal-dow-row">
           <div class="cal-dow">आइत</div><div class="cal-dow">सोम</div><div class="cal-dow">मंगल</div>
@@ -649,6 +673,73 @@ const DUTY_TIMES={
   'AON*':'12:00 PM – next day 12:00 PM (24 hrs)','NMO*':'Prev. day 12:00 PM – Today 12:00 PM (24 hrs)',
   'XX':'','xx':'',''  :''
 };
+ // ─── TITHI & HOLIDAYS ───────────────────────────────────────
+const TITHI_NAMES=[
+  'प्रतिपदा','द्वितीया','तृतीया','चतुर्थी','पञ्चमी',
+  'षष्ठी','सप्तमी','अष्टमी','नवमी','दशमी',
+  'एकादशी','द्वादशी','त्रयोदशी','चतुर्दशी'
+];
+function getTithi(iso){
+  const refNewMoon=Date.UTC(2025,0,29);
+  const dt=new Date(iso);
+  const ms=Date.UTC(dt.getFullYear(),dt.getMonth(),dt.getDate());
+  const daysSince=(ms-refNewMoon)/86400000;
+  const syn=29.53059;
+  let phase=((daysSince%syn)+syn)%syn;
+  const tn=Math.floor(phase/syn*30);
+  if(tn===0||tn===29)return'औंसी';
+  if(tn===14)return'पूर्णिमा';
+  if(tn<=13)return'शु. '+TITHI_NAMES[tn-1];
+  return'कृ. '+TITHI_NAMES[tn-15];
+}
+function getTithiFull(iso){
+  const refNewMoon=Date.UTC(2025,0,29);
+  const dt=new Date(iso);
+  const ms=Date.UTC(dt.getFullYear(),dt.getMonth(),dt.getDate());
+  const daysSince=(ms-refNewMoon)/86400000;
+  const syn=29.53059;
+  let phase=((daysSince%syn)+syn)%syn;
+  const tn=Math.floor(phase/syn*30);
+  if(tn===0||tn===29)return'औंसी';
+  if(tn===14)return'पूर्णिमा';
+  if(tn<=13)return'शुक्ल '+TITHI_NAMES[tn-1];
+  return'कृष्ण '+TITHI_NAMES[tn-15];
+}
+
+const NP_HOLIDAYS_2083={
+  // पर्व बिदा
+  '2026-04-14':'नववर्ष २०८३ (वैशाख १)',
+  '2026-05-01':'चण्डी पूर्णिमा / बुद्ध जयन्ती (वैशाख १८)',
+  '2026-08-28':'रक्षाबन्धन (भदौ १२)',
+  '2026-09-04':'श्रीकृष्ण जन्माष्टमी (भदौ १९)',
+  '2026-12-24':'धान्य पूर्णिमा (पुस ९)',
+  '2026-12-25':'क्रिसमस (पुस १०)',
+  '2026-12-30':'तमु ल्होसार (पुस १५)',
+  '2027-01-14':'माघि (माघ १)',
+  '2027-03-16':'ग्याल्पो ल्होसार (फागुन २५)',
+  // दशैं बिदा
+  '2026-10-17':'दशैं बिदा - घटस्थापना (असोज ३१)',
+  '2026-10-19':'दशैं बिदा - सप्तमी (कार्तिक २)',
+  '2026-10-20':'दशैं बिदा - महाअष्टमी (कार्तिक ३)',
+  '2026-10-21':'दशैं बिदा - महानवमी (कार्तिक ४)',
+  '2026-10-22':'दशैं बिदा - विजयादशमी (कार्तिक ५)',
+  '2026-10-23':'दशैं बिदा (कार्तिक ६)',
+  // तिहार बिदा
+  '2026-11-08':'तिहार - धनतेरस (कार्तिक २२)',
+  '2026-11-10':'तिहार - लक्ष्मीपूजा (कार्तिक २४)',
+  '2026-11-11':'तिहार - गोवर्धन पूजा (कार्तिक २५)',
+  '2026-11-12':'तिहार - भाइटीका (कार्तिक २६)',
+  // दिवस बिदा
+  '2026-05-29':'गणतन्त्र दिवस (जेठ १५)',
+  '2027-02-19':'राष्ट्रिय प्रजातन्त्र दिवस (फागुन ७)',
+  '2027-03-08':'महिला दिवस (फागुन २४)',
+  // जन्मजयन्ती
+  '2027-01-11':'पृथ्वी जयन्ती (पुस २७)',
+  // काठमाडौं जात्रा
+  '2026-09-25':'इन्द्र जात्रा (असोज ९)',
+  '2027-04-06':'घोडे जात्रा (चैत्र २३)',
+};
+// ─────────────────────────────────────────────────────────────
 const ACOLORS=['#38bdf8','#34d399','#a78bfa','#fbbf24','#f87171','#2dd4bf','#fb923c','#e879f9'];
 function avatarColor(n){let h=0;for(let c of(n||''))h=(h*31+c.charCodeAt(0))&0xffff;return ACOLORS[h%ACOLORS.length];}
 function initials(n){return(n||'??').split(' ').map(w=>w[0]).join('').toUpperCase().slice(0,2);}
@@ -1003,15 +1094,48 @@ function renderCalendar(){
   const firstDow=new Date(firstIso).getDay();
   const today=todayISO();
   const sec=S.user?S.user.section||'avia':'avia';
+
   let html='';
+  // Empty cells for first week offset
   for(let i=0;i<firstDow;i++)html+='<div class="cal-cell empty"></div>';
+
   for(let bsD=1;bsD<=bsDays;bsD++){
     const iso=bsToAd(bsY,bsM,bsD);
     const isToday=iso===today;
     const all=getAllDutiesForSection(iso,sec);
     const on=all.filter(x=>!isOff(x.shift));
     const[,m,d]=iso.split('-').map(Number);
-    const shown=on.slice(0,5);const more=on.length-shown.length;
+
+    // ── नयाँ calculations ──
+    const tithi=getTithi(iso);
+    const holiday=NP_HOLIDAYS_2083[iso]||'';
+    const isHoliday=!!holiday;
+    const dtObj=new Date(iso);
+    const dow=dtObj.getDay(); // 0=आइत, 6=शनि
+    const isWeekend=(dow===0||dow===6);
+    const userShift=S.user?getDuty(iso,S.user.name,S.user.role):null;
+    const isUserOff=userShift!==null&&isOff(userShift);
+
+    // Cell background — priority: today > holiday > userOff > weekend
+    let extraClass='';
+    let cellBg='';
+    if(isWeekend){extraClass=' weekend-cell';cellBg='';}
+    if(isUserOff){extraClass=' useroff-cell';cellBg='';}
+    if(isHoliday){extraClass=' holiday-cell';cellBg='';}
+    if(isToday)  {extraClass+=' today';cellBg='';}
+
+    // Date number colors
+    const npColor=isHoliday?'var(--red)':
+                  isWeekend?'rgba(248,113,113,.8)':
+                  isUserOff?'var(--yellow)':
+                  isToday  ?'var(--accent)':'var(--accent)';
+
+    const enColor=isHoliday?'var(--red)':
+                  isWeekend?'rgba(248,113,113,.7)':
+                  isUserOff?'var(--yellow)':'var(--text3)';
+
+    // Staff duty grid (2-column)
+    const shown=on.slice(0,4);const more=on.length-shown.length;
     let gridHtml='<div class="cc-2col">';
     for(const x of shown){
       const cls=RCOLOR[x.role]||'cn-obs';
@@ -1019,8 +1143,21 @@ function renderCalendar(){
     }
     if(more>0)gridHtml+=`<div class="cc-more">+${more}</div>`;
     gridHtml+='</div>';
-    html+=`<div class="cal-cell${isToday?' today':''}" onclick="showDayModal('${iso}')">
-      <span class="cc-np">${toNpNum(bsD)}</span><span class="cc-en">${d}</span>${gridHtml}
+
+    // Holiday short name (cell सानो भएकाले truncate)
+    const holidayShort=holiday.length>14?holiday.substring(0,13)+'…':holiday;
+
+    html+=`<div class="cal-cell${extraClass}" onclick="showCalModal('${iso}')">
+      <div style="display:flex;justify-content:space-between;align-items:baseline">
+        <span class="cc-np" style="color:${npColor}">${toNpNum(bsD)}</span>
+        <span class="cc-en" style="color:${enColor};font-size:8px">${d}</span>
+      </div>
+      <div style="font-size:6.5px;color:var(--text3);line-height:1.3;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">
+        ${tithi}${isWeekend&&!isHoliday?' · बिदा':''}
+      </div>
+      ${isHoliday?`<div style="font-size:6px;color:var(--red);font-weight:600;line-height:1.3;white-space:nowrap;overflow:hidden;text-overflow:ellipsis" title="${holiday}">${holidayShort}</div>`:''}
+      ${isUserOff?`<div style="font-size:6px;color:var(--yellow);font-weight:600;line-height:1.3">● मेरो बिदा</div>`:''}
+      ${gridHtml}
     </div>`;
   }
   document.getElementById('cal-grid').innerHTML=html;
@@ -1138,7 +1275,88 @@ function showDayModal(iso){
   document.getElementById('modal-overlay').classList.add('open');
 }
 function closeModalIfBg(e){if(e.target===document.getElementById('modal-overlay'))document.getElementById('modal-overlay').classList.remove('open');}
+function showCalModal(iso){
+  const[y,m,d]=iso.split('-').map(Number);
+  const dt=new Date(y,m-1,d);
+  const tithi=getTithiFull(iso);
+  const holiday=NP_HOLIDAYS_2083[iso]||'';
+  const dow=dt.getDay();
+  const isWeekend=(dow===0||dow===6);
+  const userShift=S.user?getDuty(iso,S.user.name,S.user.role):null;
+  const isUserOff=userShift!==null&&isOff(userShift);
 
+  document.getElementById('modal-title').textContent=
+    '📅 '+DAYS[dt.getDay()]+', '+toNepali(iso)+' ('+d+'/'+m+'/'+y+')';
+
+  let html='';
+
+  // तिथि + बिदा info card
+  html+=`<div style="background:var(--bg3);border:1px solid var(--border);border-radius:10px;padding:10px 12px;display:flex;flex-direction:column;gap:5px">
+    <div style="font-size:12px;color:var(--text2)">🌙 तिथि: <strong style="color:var(--text)">${tithi}</strong></div>
+    ${isWeekend?`<div style="font-size:12px;color:rgba(248,113,113,.9)">📅 ${DAYS_NP[dow]} — सरकारी बिदा <span style="font-size:10px;color:var(--text3)">(DHM duty यथावत)</span></div>`:''}
+    ${holiday?`<div style="font-size:12px;color:var(--red);font-weight:600">🎉 ${holiday}</div>`:''}
+    ${isUserOff?`<div style="font-size:12px;color:var(--yellow);font-weight:600">⭐ तपाईंको Day Off</div>`:''}
+    ${userShift&&!isUserOff?`<div style="font-size:12px;color:var(--accent);font-weight:600">📋 तपाईंको duty: ${userShift}</div>`:''}
+  </div>`;
+
+  // Personal note section
+  const noteKey='note_'+(S.user?S.user.name:'guest')+'_'+iso;
+  const existingNote=localStorage.getItem(noteKey)||'';
+  html+=`<div style="background:rgba(251,191,36,.07);border:1px solid rgba(251,191,36,.2);border-radius:10px;padding:10px 12px">
+    <div style="font-size:11px;font-weight:600;color:var(--yellow);margin-bottom:6px">📝 मेरो नोट <span style="font-size:9px;font-weight:400;color:var(--text3)">(Personal — अरूलाई देखिँदैन)</span></div>
+    <textarea id="cal-note-input" class="fi" rows="2" placeholder="यहाँ नोट लेख्नुहोस्..." style="font-size:12px;resize:none">${existingNote}</textarea>
+    <div style="display:flex;gap:6px;margin-top:6px">
+      <button onclick="saveCalNote('${iso}')" style="background:var(--green);color:#071a10;font-size:12px;font-weight:700;padding:6px 12px;border:none;border-radius:8px;cursor:pointer">💾 Save</button>
+      ${existingNote?`<button onclick="deleteCalNote('${iso}')" style="background:rgba(248,113,113,.15);color:var(--red);font-size:12px;font-weight:600;padding:6px 12px;border:1px solid rgba(248,113,113,.3);border-radius:8px;cursor:pointer">🗑️ Delete</button>`:''}
+    </div>
+  </div>`;
+
+  // Staff duty list
+  const sec=S.user?S.user.section||'avia':'avia';
+  const all=getAllDutiesForSection(iso,sec);
+  const onDuty=all.filter(x=>!isOff(x.shift)).sort((a,b)=>a.name.localeCompare(b.name));
+  const offDuty=all.filter(x=>isOff(x.shift));
+
+  if(all.length){
+    html+=`<div style="font-size:11px;font-weight:600;color:var(--text3);letter-spacing:1px">ALL STAFF ON DUTY</div>`;
+    html+=onDuty.map(x=>`
+      <div style="display:flex;align-items:center;padding:8px 0;border-bottom:1px solid rgba(30,48,72,.5)">
+        <div style="width:30px;height:30px;border-radius:50%;background:${avatarColor(x.name)}22;color:${avatarColor(x.name)};display:flex;align-items:center;justify-content:center;font-size:10px;font-weight:700;margin-right:8px;flex-shrink:0">${initials(x.name)}</div>
+        <div style="flex:1">
+          <div style="font-size:13px;font-weight:500">${x.name}</div>
+          <div style="font-size:10px;color:var(--text3)">${RICON[x.role]} ${RLABEL[x.role]}</div>
+        </div>
+        <div style="text-align:right">
+          <div style="font-size:12px;font-weight:700;color:var(--accent)">${x.shift}</div>
+          <div style="font-size:9px;color:var(--text3)">${dutyTime(x.shift)}</div>
+        </div>
+      </div>`).join('');
+    if(offDuty.length)html+=`<div style="font-size:11px;color:var(--text3);margin-top:6px;margin-bottom:4px">DAY OFF</div>
+      <div style="display:flex;flex-wrap:wrap;gap:5px">${offDuty.map(x=>`<span style="background:var(--card2);border:1px solid var(--border);border-radius:100px;padding:3px 10px;font-size:11px;color:var(--text2)">${x.name}</span>`).join('')}</div>`;
+  }else{
+    html+='<div style="color:var(--text3);text-align:center;padding:16px;font-size:13px">No roster data for this day</div>';
+  }
+
+  document.getElementById('modal-body').innerHTML=html;
+  document.getElementById('modal-overlay').classList.add('open');
+}
+
+function saveCalNote(iso){
+  const noteKey='note_'+(S.user?S.user.name:'guest')+'_'+iso;
+  const val=document.getElementById('cal-note-input').value.trim();
+  if(val){localStorage.setItem(noteKey,val);}
+  else{localStorage.removeItem(noteKey);}
+  document.getElementById('modal-overlay').classList.remove('open');
+  renderCalendar();
+}
+
+function deleteCalNote(iso){
+  if(!confirm('Note delete गर्ने?'))return;
+  const noteKey='note_'+(S.user?S.user.name:'guest')+'_'+iso;
+  localStorage.removeItem(noteKey);
+  document.getElementById('modal-overlay').classList.remove('open');
+  renderCalendar();
+}
 // ── SWAP MODAL ──
 function openSwapModal(){
   if(!S.user){alert('Please login first');return;}
