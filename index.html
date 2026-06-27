@@ -1314,12 +1314,19 @@ function showCalModal(iso){
   </div>`;
 
   // Personal note section
-  const noteKey='note_'+(S.user?S.user.name:'guest')+'_'+iso;
+ const noteKey='note_'+(S.user?S.user.name:'guest')+'_'+iso;
+  const reminderKey='reminder_'+(S.user?S.user.name:'guest')+'_'+iso;
   const existingNote=localStorage.getItem(noteKey)||'';
+  const existingReminder=localStorage.getItem(reminderKey)||'';
   html+=`<div style="background:rgba(251,191,36,.07);border:1px solid rgba(251,191,36,.2);border-radius:10px;padding:10px 12px">
     <div style="font-size:11px;font-weight:600;color:var(--yellow);margin-bottom:6px">📝 मेरो नोट <span style="font-size:9px;font-weight:400;color:var(--text3)">(Personal — अरूलाई देखिँदैन)</span></div>
     <textarea id="cal-note-input" class="fi" rows="2" placeholder="यहाँ नोट लेख्नुहोस्..." style="font-size:12px;resize:none">${existingNote}</textarea>
-    <div style="display:flex;gap:6px;margin-top:6px">
+    <div style="margin-top:8px">
+      <label style="font-size:11px;font-weight:600;color:var(--text2);display:block;margin-bottom:4px">⏰ Reminder Time <span style="font-size:9px;font-weight:400;color:var(--text3)">(optional)</span></label>
+      <input type="time" id="cal-reminder-time" class="fi" value="${existingReminder}" style="font-size:13px;width:140px;padding:8px 10px"/>
+      ${existingReminder?`<div style="font-size:10px;color:var(--yellow);margin-top:3px">⏰ ${existingReminder} मा notification आउनेछ</div>`:''}
+    </div>
+    <div style="display:flex;gap:6px;margin-top:8px">
       <button onclick="saveCalNote('${iso}')" style="background:var(--green);color:#071a10;font-size:12px;font-weight:700;padding:6px 12px;border:none;border-radius:8px;cursor:pointer">💾 Save</button>
       ${existingNote?`<button onclick="deleteCalNote('${iso}')" style="background:rgba(248,113,113,.15);color:var(--red);font-size:12px;font-weight:600;padding:6px 12px;border:1px solid rgba(248,113,113,.3);border-radius:8px;cursor:pointer">🗑️ Delete</button>`:''}
     </div>
@@ -1355,19 +1362,42 @@ function showCalModal(iso){
   document.getElementById('modal-overlay').classList.add('open');
 }
 
-function saveCalNote(iso){
+async function saveCalNote(iso){
   const noteKey='note_'+(S.user?S.user.name:'guest')+'_'+iso;
+  const reminderKey='reminder_'+(S.user?S.user.name:'guest')+'_'+iso;
   const val=document.getElementById('cal-note-input').value.trim();
+  const reminderTime=document.getElementById('cal-reminder-time').value;
   if(val){localStorage.setItem(noteKey,val);}
   else{localStorage.removeItem(noteKey);}
+  if(reminderTime){localStorage.setItem(reminderKey,reminderTime);}
+  else{localStorage.removeItem(reminderKey);}
+  if(reminderTime&&S.scriptUrl&&S.user&&S.fcmToken){
+    try{
+      await fetch(S.scriptUrl,{method:'POST',mode:'no-cors',body:JSON.stringify({
+        action:'saveReminder',name:S.user.name,role:S.user.role,
+        date:iso,time:reminderTime,token:S.fcmToken
+      })});
+    }catch(e){}
+  }
   document.getElementById('modal-overlay').classList.remove('open');
   renderCalendar();
+  alert(reminderTime?'✅ Note saved! Reminder set for '+reminderTime+' on '+iso+'.'
+    :'✅ Note saved!');
 }
 
-function deleteCalNote(iso){
-  if(!confirm('Note delete गर्ने?'))return;
+async function deleteCalNote(iso){
+  if(!confirm('Note र Reminder delete गर्ने?'))return;
   const noteKey='note_'+(S.user?S.user.name:'guest')+'_'+iso;
+  const reminderKey='reminder_'+(S.user?S.user.name:'guest')+'_'+iso;
   localStorage.removeItem(noteKey);
+  localStorage.removeItem(reminderKey);
+  if(S.scriptUrl&&S.user){
+    try{
+      await fetch(S.scriptUrl,{method:'POST',mode:'no-cors',body:JSON.stringify({
+        action:'deleteReminder',name:S.user.name,date:iso
+      })});
+    }catch(e){}
+  }
   document.getElementById('modal-overlay').classList.remove('open');
   renderCalendar();
 }
