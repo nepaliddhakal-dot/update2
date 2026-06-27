@@ -156,7 +156,7 @@ input,select,textarea{font-family:'Inter',sans-serif}
 .cal-dow-row{display:grid;grid-template-columns:repeat(7,1fr);background:var(--bg);border-bottom:1px solid var(--border);position:sticky;top:0;z-index:2}
 .cal-dow{text-align:center;font-size:10px;font-weight:600;color:var(--text3);letter-spacing:.5px;padding:7px 0;text-transform:uppercase}
 .cal-grid{display:grid;grid-template-columns:repeat(7,1fr)}
-.cal-cell{border-right:1px solid var(--border);border-bottom:1px solid var(--border);min-height:90px;padding:3px 2px;cursor:pointer;transition:background .15s;overflow:hidden}
+.cal-cell{border-right:1px solid var(--border);border-bottom:1px solid var(--border);min-height:100px;padding:3px 2px;cursor:pointer;transition:background .15s;overflow:hidden}
 .cal-cell:nth-child(7n){border-right:none}
 .cal-cell.empty{background:transparent;cursor:default}
 .cal-cell:active:not(.empty){background:var(--card2)}
@@ -1096,68 +1096,69 @@ function renderCalendar(){
   const sec=S.user?S.user.section||'avia':'avia';
 
   let html='';
-  // Empty cells for first week offset
   for(let i=0;i<firstDow;i++)html+='<div class="cal-cell empty"></div>';
 
   for(let bsD=1;bsD<=bsDays;bsD++){
     const iso=bsToAd(bsY,bsM,bsD);
     const isToday=iso===today;
-    const all=getAllDutiesForSection(iso,sec);
-    const on=all.filter(x=>!isOff(x.shift));
     const[,m,d]=iso.split('-').map(Number);
 
-    // ── नयाँ calculations ──
+    // ── calculations ──
     const tithi=getTithi(iso);
     const holiday=NP_HOLIDAYS_2083[iso]||'';
     const isHoliday=!!holiday;
     const dtObj=new Date(iso);
-    const dow=dtObj.getDay(); // 0=आइत, 6=शनि
+    const dow=dtObj.getDay();
     const isWeekend=(dow===0||dow===6);
     const userShift=S.user?getDuty(iso,S.user.name,S.user.role):null;
     const isUserOff=userShift!==null&&isOff(userShift);
+    const hasNote=!!localStorage.getItem('note_'+(S.user?S.user.name:'guest')+'_'+iso);
 
-    // Cell background — priority: today > holiday > userOff > weekend
-    let extraClass='';
-    let cellBg='';
-    if(isWeekend){extraClass=' weekend-cell';cellBg='';}
-    if(isUserOff){extraClass=' useroff-cell';cellBg='';}
-    if(isHoliday){extraClass=' holiday-cell';cellBg='';}
-    if(isToday)  {extraClass+=' today';cellBg='';}
+    // ── Colors decide ──
+    let mainColor='var(--text)';           // सामान्य — सेतो
+    let bgStyle='';
+    let tithiColor='var(--text3)';
 
-    // Date number colors
-    const npColor=isHoliday?'var(--red)':
-                  isWeekend?'rgba(248,113,113,.8)':
-                  isUserOff?'var(--yellow)':
-                  isToday  ?'var(--accent)':'var(--accent)';
-
-    const enColor=isHoliday?'var(--red)':
-                  isWeekend?'rgba(248,113,113,.7)':
-                  isUserOff?'var(--yellow)':'var(--text3)';
-
-    // Staff duty grid (2-column)
-    const shown=on.slice(0,4);const more=on.length-shown.length;
-    let gridHtml='<div class="cc-2col">';
-    for(const x of shown){
-      const cls=RCOLOR[x.role]||'cn-obs';
-      gridHtml+=`<div class="cc-entry"><span class="cc-nm ${cls}">${x.name.split(' ')[0]}</span><span class="cc-sh ${cls}">${x.shift}</span></div>`;
+    if(isWeekend){
+      mainColor='var(--red)';
+      bgStyle='background:rgba(248,113,113,.04);';
+      tithiColor='rgba(248,113,113,.6)';
     }
-    if(more>0)gridHtml+=`<div class="cc-more">+${more}</div>`;
-    gridHtml+='</div>';
+    if(isHoliday){
+      mainColor='var(--red)';
+      bgStyle='background:rgba(248,113,113,.07);';
+      tithiColor='rgba(248,113,113,.7)';
+    }
+    if(isUserOff){
+      mainColor='var(--yellow)';
+      bgStyle='background:rgba(251,191,36,.08);';
+      tithiColor='rgba(251,191,36,.6)';
+    }
+    if(isToday){
+      mainColor='var(--accent)';
+      bgStyle='background:rgba(56,189,248,.12);border:1px solid rgba(56,189,248,.3);';
+      tithiColor='rgba(56,189,248,.7)';
+    }
 
-    // Holiday short name (cell सानो भएकाले truncate)
-    const holidayShort=holiday.length>14?holiday.substring(0,13)+'…':holiday;
+    // ── User आफ्नो duty मात्र ──
+    let userDutyHtml='';
+    if(userShift!==null&&!isUserOff){
+      userDutyHtml=`<div style="margin-top:3px;font-size:9px;font-weight:700;color:var(--accent);background:rgba(56,189,248,.1);border-radius:4px;padding:1px 4px;display:inline-block">${userShift}</div>`;
+    }
 
-    html+=`<div class="cal-cell${extraClass}" onclick="showCalModal('${iso}')">
-      <div style="display:flex;justify-content:space-between;align-items:baseline">
-        <span class="cc-np" style="color:${npColor}">${toNpNum(bsD)}</span>
-        <span class="cc-en" style="color:${enColor};font-size:8px">${d}</span>
-      </div>
-      <div style="font-size:6.5px;color:var(--text3);line-height:1.3;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">
-        ${tithi}${isWeekend&&!isHoliday?' · बिदा':''}
-      </div>
-      ${isHoliday?`<div style="font-size:6px;color:var(--red);font-weight:600;line-height:1.3;white-space:nowrap;overflow:hidden;text-overflow:ellipsis" title="${holiday}">${holidayShort}</div>`:''}
-      ${isUserOff?`<div style="font-size:6px;color:var(--yellow);font-weight:600;line-height:1.3">● मेरो बिदा</div>`:''}
-      ${gridHtml}
+    // ── Note icon ──
+    const noteIcon=hasNote?`<span style="font-size:8px;position:absolute;top:2px;right:2px">📝</span>`:'';
+
+    // ── Holiday short label ──
+    const holidayLabel=holiday?`<div style="font-size:6.5px;color:var(--red);font-weight:600;line-height:1.3;margin-top:1px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis" title="${holiday}">${holiday.length>16?holiday.substring(0,15)+'…':holiday}</div>`:'';
+
+    html+=`<div class="cal-cell" style="${bgStyle}position:relative;" onclick="showCalModal('${iso}')">
+      ${noteIcon}
+      <div style="font-size:20px;font-weight:800;color:${mainColor};line-height:1.1;margin-bottom:1px">${toNpNum(bsD)}</div>
+      <div style="font-size:8px;color:${mainColor};opacity:.85;font-weight:500;margin-bottom:1px">${DAYS_NP[dow]} &nbsp;${d}/${m}</div>
+      <div style="font-size:7px;color:${tithiColor};line-height:1.3;margin-bottom:1px">${tithi}</div>
+      ${holidayLabel}
+      ${userDutyHtml}
     </div>`;
   }
   document.getElementById('cal-grid').innerHTML=html;
