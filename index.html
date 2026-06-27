@@ -574,8 +574,12 @@ textarea.fi{resize:vertical;min-height:80px}
       <div style="background:rgba(56,189,248,.08);border:1px solid rgba(56,189,248,.2);border-radius:10px;padding:10px 12px;font-size:12px;color:var(--text2)">Admin लाई ड्युटि परिवर्तनको अनुरोध पठाउनुहोस्।</div>
       <div class="fg"><label class="fl">DATE / मिति</label><input class="fi" type="date" id="swap-date" onchange="onSwapDateChange()"/></div>
       <div class="fg"><label class="fl">CURRENT DUTY / भएको ड्युटि</label><input class="fi" id="swap-current" readonly style="background:var(--bg3);color:var(--accent);font-weight:700"/></div>
-      <div class="fg"><label class="fl">CHANGE TO / गर्ने ड्युटि</label><select class="fi" id="swap-requested"><option value="">-- Select --</option></select></div>
+      <div class="fg"><label class="fl">CHANGE TO / गर्ने ड्युटि</label><select class="fi" id="swap-requested" onchange="onSwapRequestedChange(this)"><option value="">-- Select --</option></select></div>
       <div class="fg"><label class="fl">MESSAGE / सन्देश</label><textarea class="fi" id="swap-message" rows="3" placeholder="कारण लेख्नुहोस्..."></textarea></div>
+     <div id="swap-custom-wrap" style="display:none">
+  <label class="fl">आफैं लेख्नुहोस्</label>
+  <input class="fi" id="swap-custom-input" placeholder="e.g. BIDA-XYZ वा अन्य..."/>
+</div>
       <div id="swap-err" style="font-size:12px;color:var(--red);min-height:16px"></div>
       <button class="btn-green" onclick="submitSwapRequest()">📨 Send Request to Admin</button>
       <button class="btn-outline" onclick="document.getElementById('swap-modal').style.display='none'" style="width:100%">Cancel</button>
@@ -1148,17 +1152,69 @@ function onSwapDateChange(){const iso=document.getElementById('swap-date').value
 function fillSwapForDate(iso){
   const shift=getDuty(iso,S.user.name,S.user.role);
   document.getElementById('swap-current').value=shift===null?'No data':isOff(shift)?'Day Off (xx)':shift;
+
+  // Duty change options from roster
   const seen=new Set();
-  for(const m of getMonthsForRole(S.user.role)){for(const day of(m.days||[])){const s=day.duties&&day.duties[S.user.name];if(s!==undefined&&s!==shift)seen.add(s||'xx');}}
-  seen.add('xx');
+  for(const m of getMonthsForRole(S.user.role)){
+    for(const day of(m.days||[])){
+      const s=day.duties&&day.duties[S.user.name];
+      if(s!==undefined&&s!==shift)seen.add(s||'xx');
+    }
+  }
+
+  // Leave types (बिदाहरू)
+  const leaveTypes=[
+    {value:'BIDA-BHP', label:'भैपरी आउने बिदा'},
+    {value:'BIDA-PRB', label:'पर्व बिदा'},
+    {value:'BIDA-GHR', label:'घर बिदा'},
+    {value:'BIDA-BIR', label:'बिरामी बिदा'},
+    {value:'BIDA-PRS', label:'प्रसूति बिदा'},
+    {value:'BIDA-PSY', label:'प्रसूति स्याहार बिदा'},
+    {value:'BIDA-KIR', label:'किरिया बिदा'},
+    {value:'BIDA-ADH', label:'अध्ययन बिदा'},
+    {value:'BIDA-ASA', label:'असाधारण बिदा'},
+    {value:'BIDA-SAT', label:'सट्टा बिदा'},
+    {value:'xx',       label:'Day Off (xx)'},
+  ];
+
   let opts='<option value="">-- Select --</option>';
-  for(const s of seen){opts+=`<option value="${s}">${isOff(s)?'Day Off (xx)':(s+' — '+dutyLabel(s))}</option>`;}
+
+  // Roster-based duties (Day Off deduplicated — skip xx/XX if already in leaveTypes)
+  for(const s of seen){
+    if(isOff(s)) continue; // Day Off is handled in leaveTypes below
+    opts+=`<option value="${s}">${s} — ${dutyLabel(s)}</option>`;
+  }
+
+  // Separator
+  opts+=`<option disabled>─── बिदा (Leave) ───</option>`;
+
+  // Leave types
+  for(const l of leaveTypes){
+    opts+=`<option value="${l.value}">${l.label}</option>`;
+  }
+
+  // Custom / manual entry separator
+  opts+=`<option disabled>─── अन्य ───</option>`;
+  opts+=`<option value="__custom__">✏️ आफैं लेख्नुहोस् (Custom)...</option>`;
+
   document.getElementById('swap-requested').innerHTML=opts;
+}
+  function onSwapRequestedChange(sel){
+  const wrap=document.getElementById('swap-custom-wrap');
+  if(sel.value==='__custom__'){
+    wrap.style.display='block';
+    document.getElementById('swap-custom-input').focus();
+  } else {
+    wrap.style.display='none';
+  }
 }
 async function submitSwapRequest(){
   const date=document.getElementById('swap-date').value;
   const current=document.getElementById('swap-current').value.trim();
-  const requested=document.getElementById('swap-requested').value;
+  const selVal=document.getElementById('swap-requested').value;
+const requested=selVal==='__custom__'
+  ? document.getElementById('swap-custom-input').value.trim()
+  : selVal;
   const message=document.getElementById('swap-message').value.trim();
   const err=document.getElementById('swap-err');
   if(!date){err.textContent='❌ Please select a date';return;}
