@@ -615,6 +615,10 @@ textarea.fi{resize:vertical;min-height:80px}
 </div>
       <div id="swap-err" style="font-size:12px;color:var(--red);min-height:16px"></div>
       <button class="btn-green" onclick="submitSwapRequest()">📨 Send Request to Admin</button>
+      <div style="margin-top:6px;border-top:1px solid var(--border);padding-top:12px">
+        <div style="font-size:12px;font-weight:600;color:var(--text2);margin-bottom:8px">📋 मेरो अघिल्ला अनुरोधहरू</div>
+        <div id="my-requests-list"><div style="color:var(--text3);font-size:12px">⏳ Loading...</div></div>
+      </div>
       <button class="btn-outline" onclick="document.getElementById('swap-modal').style.display='none'" style="width:100%">Cancel</button>
     </div>
   </div>
@@ -1375,6 +1379,7 @@ function openSwapModal(){
   document.getElementById('swap-message').value='';
   document.getElementById('swap-err').textContent='';
   document.getElementById('swap-modal').style.display='flex';
+  loadMyRequests();
 }
 function onSwapDateChange(){const iso=document.getElementById('swap-date').value;if(iso)fillSwapForDate(iso);}
 function fillSwapForDate(iso){
@@ -1765,6 +1770,34 @@ async function submitNewPin(){
   const u=S.adminCreds.username||'admin';S.adminCreds={username:u,pin:p1};localStorage.setItem('mfd_admin',JSON.stringify(S.adminCreds));
   try{await fetch(S.scriptUrl,{method:'POST',mode:'no-cors',body:JSON.stringify({action:'saveCreds',username:u,pin:p1})});}catch(e){}
   document.getElementById('reset-pin-modal').classList.remove('open');alert('✅ Password changed!');
+}
+  // ── MY REQUESTS (STAFF) ──
+async function loadMyRequests(){
+  const el=document.getElementById('my-requests-list');
+  if(!el||!S.user)return;
+  el.innerHTML='<div style="color:var(--text3);font-size:12px">⏳ Loading...</div>';
+  try{
+    const res=await fetch(S.scriptUrl+'?action=getSwapRequests');
+    const data=await res.json();
+    const mine=(data.data||[]).filter(r=>r.user===S.user.name);
+    if(!mine.length){el.innerHTML='<div style="color:var(--text3);font-size:12px">कुनै अनुरोध छैन।</div>';return;}
+    const sorted=[...mine].reverse().slice(0,5); // show last 5 only
+    el.innerHTML=sorted.map(r=>{
+      const statusColor=r.status==='Approved'?'var(--green)':r.status==='Rejected'?'var(--red)':'var(--yellow)';
+      const statusBg=r.status==='Approved'?'var(--green-dim)':r.status==='Rejected'?'rgba(248,113,113,.1)':'rgba(251,191,36,.1)';
+      return`<div style="background:var(--bg3);border:1px solid var(--border);border-radius:10px;padding:10px 12px;margin-bottom:8px">
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:4px">
+          <span style="font-size:12px;color:var(--text2)">📅 ${r.date}</span>
+          <span style="font-size:11px;font-weight:700;padding:2px 8px;border-radius:100px;background:${statusBg};color:${statusColor}">${r.status}</span>
+        </div>
+        <div style="font-size:12px;font-weight:600">${r.current} → <span style="color:var(--accent)">${r.requested}</span></div>
+        <div style="font-size:11px;color:var(--text3);margin-top:3px">${r.message}</div>
+        ${r.status==='Rejected'&&r.adminNote?`<div style="font-size:11px;color:var(--red);margin-top:4px">Admin: ${r.adminNote}</div>`:''}
+      </div>`;
+    }).join('');
+  }catch(e){
+    el.innerHTML='<div style="color:var(--text3);font-size:12px">Load गर्न सकिएन।</div>';
+  }
 }
 // ── SWAP REQUESTS (ADMIN) ──
 async function loadSwapRequests(){
