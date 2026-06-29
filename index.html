@@ -1077,7 +1077,7 @@ function renderMyDuties(){
   for(const{dutyEntry}of days){
     if(!dutyEntry)continue;hasData=true;
     const shift=dutyEntry.duties?dutyEntry.duties[name]:'';
-    const key=isOff(shift)?'Day Off':(shift||'Day Off');
+    const key=isOff(shift)?'Day Off':(!shift?'Day Off':shift);
     sumMap[key]=(sumMap[key]||0)+1;total++;
   }
   let sumHtml='';
