@@ -381,15 +381,15 @@ textarea.fi{resize:vertical;min-height:80px}
     <!-- MY DUTIES — clean rows, no colleague list; click row to see details -->
     <div class="tab-panel" id="tab-myduties">
       <div class="month-nav">
-        <button class="nav-arrow" onclick="mdPrev()">‹</button>
-        <div style="flex:1;text-align:center">
-          <div class="mn-title" id="md-month-title">--</div>
-          <div style="font-size:11px;color:var(--text2);margin-top:2px">
-            <span id="md-today-en"></span> &nbsp;·&nbsp;
-            <span id="md-today-np" style="color:var(--accent);font-weight:600"></span>
-          </div>
+        <div style="display:flex;flex-direction:column;align-items:flex-start;min-width:80px">
+          <button class="nav-arrow" onclick="mdPrev()" style="padding:0">‹</button>
+          <span id="md-today-en" style="font-size:10px;color:var(--text2);padding-left:4px"></span>
         </div>
-        <button class="nav-arrow" onclick="mdNext()">›</button>
+        <div class="mn-title" id="md-month-title">--</div>
+        <div style="display:flex;flex-direction:column;align-items:flex-end;min-width:80px">
+          <button class="nav-arrow" onclick="mdNext()" style="padding:0">›</button>
+          <span id="md-today-np" style="font-size:10px;color:var(--accent);font-weight:600;padding-right:4px"></span>
+        </div>
       </div>
       <div id="md-list" style="flex:1;overflow-y:auto"></div>
     </div>
@@ -1082,17 +1082,29 @@ function renderMyDuties(){
   }
   let sumHtml='';
   if(hasData){
+    // All BIDA- prefixed keys + Day Off = total leave
+    const BIDA_LABELS={
+      'BIDA-BHP':'भैपरी आउने बिदा','BIDA-PRB':'पर्व बिदा','BIDA-GHR':'घर बिदा',
+      'BIDA-BIR':'बिरामी बिदा','BIDA-PRS':'प्रसूति बिदा','BIDA-PSY':'प्रसूति स्याहार बिदा',
+      'BIDA-KIR':'किरिया बिदा','BIDA-ADH':'अध्ययन बिदा','BIDA-ASA':'असाधारण बिदा',
+      'BIDA-SAT':'सट्टा बिदा'
+    };
+    const isLeave=(s)=>s==='Day Off'||s==='xx'||s==='XX'||s.startsWith('BIDA-');
+    let totalLeave=0;
+    let totalDuty=0;
     let gridCells='';
     for(const[shift,count]of Object.entries(sumMap).sort((a,b)=>b[1]-a[1])){
-      const off=shift==='Day Off';
-      gridCells+=`<div class="summary-item"><div class="si-shift-label">${off?'Day Off':(DUTY_NAMES[shift]||shift)}</div><div class="si-count ${off?'offc':'duty'}">${count}<span style="font-size:12px;font-weight:400"> दिन</span></div></div>`;
+      const leave=isLeave(shift);
+      if(leave)totalLeave+=count; else totalDuty+=count;
+      const label=shift==='Day Off'?'Day Off':(BIDA_LABELS[shift]||DUTY_NAMES[shift]||shift);
+      gridCells+=`<div class="summary-item"><div class="si-shift-label">${label}</div><div class="si-count ${leave?'offc':'duty'}">${count}<span style="font-size:12px;font-weight:400"> दिन</span></div></div>`;
     }
     sumHtml=`<div style="margin:14px 12px 24px;background:var(--card2);border:1px solid var(--border2);border-radius:var(--radius);padding:14px">
       <div style="font-size:13px;font-weight:700;margin-bottom:10px">📊 ${NP_MONTHS[bsM]} ${toNpNum(bsY)} — सारांश</div>
       <div class="summary-grid">${gridCells}</div>
       <div style="margin-top:10px;padding-top:10px;border-top:1px solid var(--border);display:grid;grid-template-columns:1fr 1fr;gap:8px">
-        <div class="summary-item"><div class="si-shift-label">कुल ड्युटि दिन</div><div class="si-count duty">${total-(sumMap['Day Off']||0)}<span style="font-size:12px;font-weight:400"> दिन</span></div></div>
-        <div class="summary-item"><div class="si-shift-label">कुल बिदा दिन</div><div class="si-count offc">${sumMap['Day Off']||0}<span style="font-size:12px;font-weight:400"> दिन</span></div></div>
+        <div class="summary-item"><div class="si-shift-label">कुल ड्युटि दिन</div><div class="si-count duty">${totalDuty}<span style="font-size:12px;font-weight:400"> दिन</span></div></div>
+        <div class="summary-item"><div class="si-shift-label">कुल बिदा दिन</div><div class="si-count offc">${totalLeave}<span style="font-size:12px;font-weight:400"> दिन</span></div></div>
       </div></div>`;
   }else{sumHtml='<div style="padding:20px;text-align:center;color:var(--text3);font-size:13px">No roster data for this month.</div>';}
   document.getElementById('md-list').innerHTML=html+sumHtml;
