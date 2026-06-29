@@ -382,12 +382,14 @@ textarea.fi{resize:vertical;min-height:80px}
     <div class="tab-panel" id="tab-myduties">
       <div class="month-nav">
         <button class="nav-arrow" onclick="mdPrev()">‹</button>
-        <div class="mn-title" id="md-month-title">--</div>
+        <div style="flex:1;text-align:center">
+          <div class="mn-title" id="md-month-title">--</div>
+          <div style="font-size:11px;color:var(--text2);margin-top:2px">
+            <span id="md-today-en"></span> &nbsp;·&nbsp;
+            <span id="md-today-np" style="color:var(--accent);font-weight:600"></span>
+          </div>
+        </div>
         <button class="nav-arrow" onclick="mdNext()">›</button>
-      </div>
-      <div style="display:flex;justify-content:space-between;align-items:center;padding:6px 16px 8px;border-bottom:1px solid var(--border);flex-shrink:0">
-        <span id="md-today-en" style="font-size:12px;color:var(--text2)"></span>
-        <span id="md-today-np" style="font-size:12px;color:var(--accent);font-weight:600"></span>
       </div>
       <div id="md-list" style="flex:1;overflow-y:auto"></div>
     </div>
@@ -1027,12 +1029,12 @@ function renderMyDuties(){
   const{np,en}=buildBsHeader(bsY,bsM);
   document.getElementById('md-month-title').textContent=np+'  ('+en+')';
   const nowD=new Date(new Date().getTime()+(new Date().getTimezoneOffset()*60000)+((5*60+45)*60000));
-  document.getElementById('md-today-en').textContent=DAYS[nowD.getDay()]+', '+String(nowD.getDate()).padStart(2,'0')+'/'+String(nowD.getMonth()+1).padStart(2,'0')+'/'+nowD.getFullYear();
+  document.getElementById('md-today-en').textContent=DAYS[nowD.getDay()]+' '+nowD.getDate()+'/'+(nowD.getMonth()+1)+'/'+nowD.getFullYear();
   document.getElementById('md-today-np').textContent=toNepali(todayISO());
   const bsDays=bsMonthDays(bsY,bsM);const todayStr=todayISO();
   const days=[];
-  for(let d=1;d<=bsDays;d++){
-    const iso=bsToAd(bsY,bsM,d);
+  for(let bsD=1;bsD<=bsDays;bsD++){
+    const iso=bsToAd(bsY,bsM,bsD);
     // Check all roles for this person
     let dutyEntry=null;
     let dutyRole=role;
@@ -1061,7 +1063,7 @@ function renderMyDuties(){
       <div class="ddr-left">
         <span class="ddr-dow" style="${isToday?'color:var(--accent);font-weight:700':''}">${DAYS[dt.getDay()]}</span>
         <span class="ddr-date" style="color:var(--accent);font-weight:${isToday?800:600};font-size:${isToday?17:15}px">${toNpNum(bsD)} ${NP_MONTHS[bsM]}</span>
-        <span class="ddr-nepali">${String(mo).padStart(2,'0')}/${String(dd).padStart(2,'0')}</span>
+        <span class="ddr-nepali">${String(mo).padStart(2,'0')}/${String(dy).padStart(2,'0')}</span>
       </div>
       <div class="ddr-right">
         <span class="shift-pill ${off?'off':'on'}">${off?(dutyEntry?'Day off':'No data'):shift}</span>
