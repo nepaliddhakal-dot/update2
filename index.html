@@ -1053,15 +1053,15 @@ function renderMyDuties(){
   for(const{iso,bsD,dutyEntry,dutyRole}of days){
     const wk=Math.floor((bsD-1)/7);
     if(wk!==lastWk){html+=`<div class="week-label">${WEEK_NAMES[wk]||'Week '+(wk+1)}</div>`;lastWk=wk;}
-    const shift=dutyEntry&&dutyEntry.duties?dutyEntry.duties[name]:'';
+    const shift=dutyEntry&&dutyEntry.duties&&dutyEntry.duties[name]!==undefined?dutyEntry.duties[name]:'';
     const shiftRole=dutyRole||role;
     const off=isOff(shift);const isToday=iso===todayStr;
-    const[y,m,d]=iso.split('-').map(Number);const dt=new Date(iso);
+    const[yr,mo,dy]=iso.split('-').map(Number);const dt=new Date(iso);
     html+=`<div class="duty-day-row" id="md-r-${iso}" onclick="showDayModal('${iso}')" style="${isToday?'background:rgba(56,189,248,.07);border-left:3px solid var(--accent);':''}">
       <div class="ddr-left">
         <span class="ddr-dow" style="${isToday?'color:var(--accent);font-weight:700':''}">${DAYS[dt.getDay()]}</span>
         <span class="ddr-date" style="color:var(--accent);font-weight:${isToday?800:600};font-size:${isToday?17:15}px">${toNpNum(bsD)} ${NP_MONTHS[bsM]}</span>
-        <span class="ddr-nepali">${String(m).padStart(2,'0')}/${String(d).padStart(2,'0')}</span>
+        <span class="ddr-nepali">${String(mo).padStart(2,'0')}/${String(dd).padStart(2,'0')}</span>
       </div>
       <div class="ddr-right">
         <span class="shift-pill ${off?'off':'on'}">${off?(dutyEntry?'Day off':'No data'):shift}</span>
