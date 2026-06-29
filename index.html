@@ -1050,7 +1050,7 @@ function renderMyDuties(){
     days.push({iso,bsD,dutyEntry,dutyRole});
   }
   let html='',lastWk=-1;
-  for(const{iso,bsD,dutyEntry}of days){
+  for(const{iso,bsD,dutyEntry,dutyRole}of days){
     const wk=Math.floor((bsD-1)/7);
     if(wk!==lastWk){html+=`<div class="week-label">${WEEK_NAMES[wk]||'Week '+(wk+1)}</div>`;lastWk=wk;}
     const shift=dutyEntry&&dutyEntry.duties?dutyEntry.duties[name]:'';
