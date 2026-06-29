@@ -1033,15 +1033,28 @@ function renderMyDuties(){
   const days=[];
   for(let d=1;d<=bsDays;d++){
     const iso=bsToAd(bsY,bsM,d);
+    // Check all roles for this person
     let dutyEntry=null;
-    for(const m of getMonthsForRole(role)){for(const day of(m.days||[])){if((day.date||day.isoDate)===iso){dutyEntry=day;break;}}if(dutyEntry)break;}
-    days.push({iso,bsD:d,dutyEntry});
+    let dutyRole=role;
+    for(const r of['sdm','forecaster','observer']){
+      for(const m of getMonthsForRole(r)){
+        for(const day of(m.days||[])){
+          if((day.date||day.isoDate)===iso&&day.duties&&day.duties[name]!==undefined){
+            dutyEntry=day;dutyRole=r;break;
+          }
+        }
+        if(dutyEntry)break;
+      }
+      if(dutyEntry)break;
+    }
+    days.push({iso,bsD,dutyEntry,dutyRole});
   }
   let html='',lastWk=-1;
   for(const{iso,bsD,dutyEntry}of days){
     const wk=Math.floor((bsD-1)/7);
     if(wk!==lastWk){html+=`<div class="week-label">${WEEK_NAMES[wk]||'Week '+(wk+1)}</div>`;lastWk=wk;}
     const shift=dutyEntry&&dutyEntry.duties?dutyEntry.duties[name]:'';
+    const shiftRole=dutyRole||role;
     const off=isOff(shift);const isToday=iso===todayStr;
     const[y,m,d]=iso.split('-').map(Number);const dt=new Date(iso);
     html+=`<div class="duty-day-row" id="md-r-${iso}" onclick="showDayModal('${iso}')" style="${isToday?'background:rgba(56,189,248,.07);border-left:3px solid var(--accent);':''}">
@@ -1052,6 +1065,7 @@ function renderMyDuties(){
       </div>
       <div class="ddr-right">
         <span class="shift-pill ${off?'off':'on'}">${off?(dutyEntry?'Day off':'No data'):shift}</span>
+        ${!off&&shift?`<span style="font-size:9px;color:var(--text3);margin-top:1px">${RICON[shiftRole]} ${RLABEL[shiftRole]}</span>`:''}
         ${!off&&shift?`<div style="font-size:10px;color:var(--text3);margin-top:2px">${dutyTime(shift)}</div>`:''}
       </div>
     </div>`;
