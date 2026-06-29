@@ -156,7 +156,7 @@ input,select,textarea{font-family:'Inter',sans-serif}
 .cal-dow-row{display:grid;grid-template-columns:repeat(7,1fr);background:var(--bg);border-bottom:1px solid var(--border);position:sticky;top:0;z-index:2}
 .cal-dow{text-align:center;font-size:10px;font-weight:600;color:var(--text3);letter-spacing:.5px;padding:7px 0;text-transform:uppercase}
 .cal-grid{display:grid;grid-template-columns:repeat(7,1fr)}
-.cal-cell{border-right:1px solid var(--border);border-bottom:1px solid var(--border);min-height:100px;padding:3px 2px;cursor:pointer;transition:background .15s;overflow:hidden}
+.cal-cell{border-right:1px solid var(--border);border-bottom:1px solid var(--border);min-height:120px;padding:4px;cursor:pointer;transition:background .15s;overflow:hidden}
 .cal-cell:nth-child(7n){border-right:none}
 .cal-cell.empty{background:transparent;cursor:default}
 .cal-cell:active:not(.empty){background:var(--card2)}
@@ -1143,8 +1143,10 @@ function renderCalendar(){
 
     // ── User आफ्नो duty मात्र ──
     let userDutyHtml='';
+    let userDutyHtml2='';
     if(userShift!==null&&!isUserOff){
       userDutyHtml=`<div style="margin-top:3px;font-size:9px;font-weight:700;color:var(--accent);background:rgba(56,189,248,.1);border-radius:4px;padding:1px 4px;display:inline-block">${userShift}</div>`;
+      userDutyHtml2=`<span style="font-size:9px;font-weight:700;color:var(--accent);background:rgba(56,189,248,.12);border-radius:4px;padding:1px 5px;margin-top:2px">${userShift}</span>`;
     }
 
     // ── Note icon ──
@@ -1153,13 +1155,15 @@ function renderCalendar(){
     // ── Holiday short label ──
     const holidayLabel=holiday?`<div style="font-size:6.5px;color:var(--red);font-weight:600;line-height:1.3;margin-top:1px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis" title="${holiday}">${holiday.length>16?holiday.substring(0,15)+'…':holiday}</div>`:'';
 
-    html+=`<div class="cal-cell" style="${bgStyle}position:relative;" onclick="showCalModal('${iso}')">
+    html+=`<div class="cal-cell" style="${bgStyle}position:relative;padding:4px 4px 6px;" onclick="showCalModal('${iso}')">
       ${noteIcon}
-      <div style="font-size:20px;font-weight:800;color:${mainColor};line-height:1.1;margin-bottom:1px">${toNpNum(bsD)}</div>
-      <div style="font-size:8px;color:${mainColor};opacity:.85;font-weight:500;margin-bottom:1px">${DAYS_NP[dow]} &nbsp;${d}/${m}</div>
-      <div style="font-size:7px;color:${tithiColor};line-height:1.3;margin-bottom:1px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${tithi}</div>
+      <div style="display:flex;align-items:flex-start;justify-content:space-between;margin-bottom:2px">
+        <span style="font-size:22px;font-weight:800;color:${mainColor};line-height:1">${toNpNum(bsD)}</span>
+        ${userDutyHtml2}
+      </div>
+      <div style="font-size:8px;color:${mainColor};opacity:.8;font-weight:500;margin-bottom:2px">${DAYS_NP[dow]} ${d}/${m}</div>
+      <div style="font-size:8px;color:${tithiColor};font-weight:500;line-height:1.3;margin-bottom:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${tithi}</div>
       ${holidayLabel}
-      ${userDutyHtml}
     </div>`;
   }
   document.getElementById('cal-grid').innerHTML=html;
