@@ -22,6 +22,14 @@
   --avia:#f97316;--avia-dim:rgba(249,115,22,0.12);
   --weather:#38bdf8;--weather-dim:rgba(56,189,248,0.12);
 }
+[data-theme="light"]{
+  --bg:#f4f6fa;--bg2:#ffffff;--bg3:#eef1f6;--card:#ffffff;--card2:#eef1f6;
+  --border:#dbe1ea;--border2:#c7cfdc;--accent:#0284c7;--accent-dim:rgba(2,132,199,0.1);
+  --green:#059669;--green-dim:rgba(5,150,105,0.1);--yellow:#b45309;--red:#dc2626;
+  --purple:#7c3aed;--teal:#0d9488;--text:#1a2433;--text2:#4b5d75;--text3:#8a99ad;
+  --avia:#ea580c;--avia-dim:rgba(234,88,12,0.08);
+  --weather:#0284c7;--weather-dim:rgba(2,132,199,0.08);
+}
 *{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent}
 html,body{height:100%;background:var(--bg);color:var(--text);font-family:'Inter',sans-serif;overflow:hidden;font-size:14px}
 body{display:flex;flex-direction:column}
@@ -342,6 +350,7 @@ textarea.fi{resize:vertical;min-height:80px}
     <div class="ah-left"><div class="welcome">Welcome,</div><div class="uname" id="hdr-name">--</div></div>
     <div class="ah-right">
       <span class="role-badge" id="hdr-role-badge">--</span>
+      <button class="icon-btn" id="theme-toggle-btn" onclick="toggleTheme()" title="Theme">🌙</button>
       <button class="icon-btn" id="notif-icon-btn" onclick="toggleNotifFromIcon()" title="Notifications">🔔</button>
       <button class="icon-btn" onclick="logout()" title="Logout">⏏️</button>
     </div>
@@ -440,26 +449,6 @@ textarea.fi{resize:vertical;min-height:80px}
           <span class="zoom-label" id="fr-zoom-lbl">100%</span>
           <button class="zoom-btn" onclick="frZoomIn()">+</button>
         </div>
-        <button class="btn-outline" onclick="frGoToday()" style="padding:5px 12px;font-size:12px">Today</button>
-      </div>
-      <div style="padding:8px 12px;font-size:10px;color:var(--text2);border-bottom:1px solid var(--border);flex-shrink:0;line-height:1.8">
-        <strong style="color:var(--text)">Duty Legend:</strong><br/>
-        <strong style="color:var(--accent)">MF</strong>=Morning Forecaster (6AM-12PM) &nbsp;
-        <strong style="color:var(--accent)">AF</strong>=Afternoon Forecaster (12PM-6PM) &nbsp;
-        <strong style="color:var(--purple)">AFN★</strong>=Day Night Forecaster (12PM-next 12PM) &nbsp;
-        <strong style="color:var(--purple)">NMF★</strong>=Night Morning Forecaster (prev 12PM-12PM) &nbsp;
-        <strong style="color:var(--accent)">MA</strong>=Morning Aviation Forecaster (6AM-12PM) &nbsp;
-        <strong style="color:var(--accent)">DA</strong>=Day Aviation Forecaster (12PM-6PM)<br/>
-        <strong style="color:var(--purple)">SM</strong>=Sr.Met Morning (6AM-12PM) &nbsp;
-        <strong style="color:var(--purple)">SA</strong>=Sr.Met Afternoon (12PM-6PM) &nbsp;
-        <strong style="color:var(--purple)">SD</strong>=Sr.Met Day (12PM-6PM) &nbsp;
-        <strong style="color:var(--purple)">SMA</strong>=Sr.Met Aviation Morning (6AM-12PM) &nbsp;
-        <strong style="color:var(--purple)">SDA</strong>=Sr.Met Aviation Day (12PM-6PM)<br/>
-        <strong style="color:var(--green)">MO</strong>=Morning Observer (6AM-12PM) &nbsp;
-        <strong style="color:var(--green)">AO</strong>=Afternoon Observer (12PM-6PM) &nbsp;
-        <strong style="color:var(--purple)">AON★</strong>=Day Night Observer (12PM-next 12PM) &nbsp;
-        <strong style="color:var(--purple)">NMO★</strong>=Night Morning Observer (prev 12PM-12PM) &nbsp;
-        <strong style="color:var(--green)">MO1</strong>=Morning Supporting Observer &nbsp;
         <strong style="color:var(--green)">AO2</strong>=Afternoon Supporting Observer
       </div>
       <div class="roster-outer" id="fr-outer">
@@ -814,6 +803,7 @@ function buildBsHeader(bsY,bsM){
 // ── INIT ──
 window.addEventListener('load',()=>{
   loadLocal();
+  applyTheme(localStorage.getItem('mfd_theme')||'dark');
   const cur=getCurrentBsMonth();
   S.mdBsYear=cur.bsY;S.mdBsMonth=cur.bsM;
   S.calBsYear=cur.bsY;S.calBsMonth=cur.bsM;
@@ -1903,6 +1893,17 @@ async function toggleNotifFromIcon(){
 async function regToken(token){if(!S.scriptUrl||!S.user)return;try{await fetch(S.scriptUrl,{method:'POST',mode:'no-cors',body:JSON.stringify({action:'saveToken',name:S.user.name,role:S.user.role,section:S.user.section,token})});}catch(e){}}
 async function unregToken(){if(!S.scriptUrl||!S.user)return;try{await fetch(S.scriptUrl,{method:'POST',mode:'no-cors',body:JSON.stringify({action:'removeToken',name:S.user.name,role:S.user.role})});}catch(e){}}
 
+// ── THEME ──
+function applyTheme(theme){
+  document.documentElement.setAttribute('data-theme',theme);
+  const btn=document.getElementById('theme-toggle-btn');
+  if(btn)btn.textContent=theme==='light'?'☀️':'🌙';
+  localStorage.setItem('mfd_theme',theme);
+}
+function toggleTheme(){
+  const cur=localStorage.getItem('mfd_theme')||'dark';
+  applyTheme(cur==='dark'?'light':'dark');
+}
 // ── UI HELPERS ──
 function togglePwVis(id,btn){const inp=document.getElementById(id);if(inp.type==='password'){inp.type='text';btn.textContent='🙈';}else{inp.type='password';btn.textContent='👁';}}
 function adminLogout(){if(!confirm('Admin logout?'))return;S.currentAdmin=null;switchScreen(S.user?'app':'login');}
