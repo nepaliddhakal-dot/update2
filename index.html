@@ -442,6 +442,26 @@ textarea.fi{resize:vertical;min-height:80px}
         </div>
         <button class="btn-outline" onclick="frGoToday()" style="padding:5px 12px;font-size:12px">Today</button>
       </div>
+      <div style="padding:8px 12px;font-size:10px;color:var(--text2);border-bottom:1px solid var(--border);flex-shrink:0;line-height:1.8">
+        <strong style="color:var(--text)">Duty Legend:</strong><br/>
+        <strong style="color:var(--accent)">MF</strong>=Morning Forecaster (6AM-12PM) &nbsp;
+        <strong style="color:var(--accent)">AF</strong>=Afternoon Forecaster (12PM-6PM) &nbsp;
+        <strong style="color:var(--purple)">AFN★</strong>=Day Night Forecaster (12PM-next 12PM) &nbsp;
+        <strong style="color:var(--purple)">NMF★</strong>=Night Morning Forecaster (prev 12PM-12PM) &nbsp;
+        <strong style="color:var(--accent)">MA</strong>=Morning Aviation Forecaster (6AM-12PM) &nbsp;
+        <strong style="color:var(--accent)">DA</strong>=Day Aviation Forecaster (12PM-6PM)<br/>
+        <strong style="color:var(--purple)">SM</strong>=Sr.Met Morning (6AM-12PM) &nbsp;
+        <strong style="color:var(--purple)">SA</strong>=Sr.Met Afternoon (12PM-6PM) &nbsp;
+        <strong style="color:var(--purple)">SD</strong>=Sr.Met Day (12PM-6PM) &nbsp;
+        <strong style="color:var(--purple)">SMA</strong>=Sr.Met Aviation Morning (6AM-12PM) &nbsp;
+        <strong style="color:var(--purple)">SDA</strong>=Sr.Met Aviation Day (12PM-6PM)<br/>
+        <strong style="color:var(--green)">MO</strong>=Morning Observer (6AM-12PM) &nbsp;
+        <strong style="color:var(--green)">AO</strong>=Afternoon Observer (12PM-6PM) &nbsp;
+        <strong style="color:var(--purple)">AON★</strong>=Day Night Observer (12PM-next 12PM) &nbsp;
+        <strong style="color:var(--purple)">NMO★</strong>=Night Morning Observer (prev 12PM-12PM) &nbsp;
+        <strong style="color:var(--green)">MO1</strong>=Morning Supporting Observer &nbsp;
+        <strong style="color:var(--green)">AO2</strong>=Afternoon Supporting Observer
+      </div>
       <div class="roster-outer" id="fr-outer">
         <div class="roster-scale-wrap" id="fr-scale"><div id="fr-table"></div></div>
       </div>
@@ -1035,24 +1055,23 @@ function renderMyDuties(){
   const days=[];
   for(let bsD=1;bsD<=bsDays;bsD++){
     const iso=bsToAd(bsY,bsM,bsD);
-    // Check all roles for this person
-    let dutyEntry=null;
-    let dutyRole=role;
+    // Collect ALL duties for this person across all roles (handles staff in both sections)
+    let allDutyEntries=[];
     for(const r of['sdm','forecaster','observer']){
       for(const m of getMonthsForRole(r)){
         for(const day of(m.days||[])){
           if((day.date||day.isoDate)===iso&&day.duties&&day.duties[name]!==undefined){
-            dutyEntry=day;dutyRole=r;break;
+            allDutyEntries.push({entry:day,role:r});
           }
         }
-        if(dutyEntry)break;
       }
-      if(dutyEntry)break;
     }
-    days.push({iso,bsD,dutyEntry,dutyRole});
+    const dutyEntry=allDutyEntries.length?allDutyEntries[0].entry:null;
+    const dutyRole=allDutyEntries.length?allDutyEntries[0].role:role;
+    days.push({iso,bsD,dutyEntry,dutyRole,allDutyEntries});
   }
   let html='',lastWk=-1;
-  for(const{iso,bsD,dutyEntry,dutyRole}of days){
+  for(const{iso,bsD,dutyEntry,dutyRole,allDutyEntries}of days){
     const wk=Math.floor((bsD-1)/7);
     if(wk!==lastWk){html+=`<div class="week-label">${WEEK_NAMES[wk]||'Week '+(wk+1)}</div>`;lastWk=wk;}
     const shift=dutyEntry&&dutyEntry.duties&&dutyEntry.duties[name]!==undefined?dutyEntry.duties[name]:'';
@@ -1066,9 +1085,19 @@ function renderMyDuties(){
         <span class="ddr-nepali">${String(mo).padStart(2,'0')}/${String(dy).padStart(2,'0')}</span>
       </div>
       <div class="ddr-right">
-        <span class="shift-pill ${off?'off':'on'}">${off?(dutyEntry?'Day off':'No data'):shift}</span>
-        ${!off&&shift?`<span style="font-size:9px;color:var(--text3);margin-top:1px">${RICON[shiftRole]} ${RLABEL[shiftRole]}</span>`:''}
-        ${!off&&shift?`<div style="font-size:10px;color:var(--text3);margin-top:2px">${dutyTime(shift)}</div>`:''}
+        ${allDutyEntries.length>1
+          ? allDutyEntries.map(({entry,role:r})=>{
+              const s2=entry.duties?entry.duties[name]:'';
+              const o2=isOff(s2);
+              return`<div style="margin-bottom:4px;text-align:right">
+                <span class="shift-pill ${o2?'off':'on'}">${o2?'Day off':s2}</span>
+                <div style="font-size:9px;color:var(--text3);margin-top:1px">${RICON[r]} ${RLABEL[r]}</div>
+              </div>`;
+            }).join('')
+          : `<span class="shift-pill ${off?'off':'on'}">${off?(dutyEntry?'Day off':'No data'):shift}</span>
+             ${!off&&shift?`<span style="font-size:9px;color:var(--text3);margin-top:1px">${RICON[shiftRole]} ${RLABEL[shiftRole]}</span>`:''}
+             ${!off&&shift?`<div style="font-size:10px;color:var(--text3);margin-top:2px">${dutyTime(shift)}</div>`:''}`
+        }
       </div>
     </div>`;
   }
