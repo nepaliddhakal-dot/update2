@@ -897,6 +897,31 @@ function getAllDutiesForSection(iso,sec){
   }
   return res;
 }
+// Get ALL staff duties from BOTH sections (used when staff works in both sections)
+function getAllDutiesBothSections(iso){
+  const res=[];const seen=new Set();
+  const namesAvia=getAllSectionNames('avia');
+  const namesWeather=getAllSectionNames('weather');
+  for(const[role,rd]of Object.entries(S.rosters)){
+    const months=rd.months||(Array.isArray(rd)?rd:[]);
+    for(const m of months)for(const d of(m.days||[])){
+      const dt=d.date||d.isoDate;
+      if(dt===iso&&d.duties){for(const[name,shift]of Object.entries(d.duties)){
+        if((namesAvia.has(name)||namesWeather.has(name))&&!seen.has(name)){
+          const inAvia=namesAvia.has(name),inWeather=namesWeather.has(name);
+          const sec=inAvia&&inWeather?'both':(inAvia?'avia':'weather');
+          seen.add(name);res.push({name,role,shift,sec});
+        }
+      }}
+    }
+  }
+  return res;
+}
+function isStaffInBothSections(name){
+  const namesAvia=getAllSectionNames('avia');
+  const namesWeather=getAllSectionNames('weather');
+  return namesAvia.has(name)&&namesWeather.has(name);
+}
 function getSectionStaff(sec,role){return(S.staff[sec]&&S.staff[sec][role])||[];}
 
 // ── LOGIN ──
@@ -1299,10 +1324,54 @@ function renderFullRoster(){
     tbody+=`<tr class="${isT?'today-row':''}">${tr}</tr>`;
   }
 
+  const legendRows=[
+    ['MF','Morning Forecaster','6:00 AM – 12:00 PM'],
+    ['AF','Afternoon Forecaster','12:00 PM – 6:00 PM'],
+    ['AFN★','Day Night Forecaster','12:00 PM – next day 12:00 PM'],
+    ['NMF★','Night Morning Forecaster','Prev. day 12:00 PM – Today 12:00 PM'],
+    ['MA','Morning Aviation Forecaster','6:00 AM – 12:00 PM'],
+    ['DA','Day Aviation Forecaster','12:00 PM – 6:00 PM'],
+    ['SM','Sr. Met. Morning','6:00 AM – 12:00 PM'],
+    ['SA','Sr. Met. Afternoon','12:00 PM – 6:00 PM'],
+    ['SD','Sr. Met. Day','12:00 PM – 6:00 PM'],
+    ['SMA','Sr. Met. Aviation Morning','6:00 AM – 12:00 PM'],
+    ['SDA','Sr. Met. Aviation Day','12:00 PM – 6:00 PM'],
+    ['MO','Morning Observer','6:00 AM – 12:00 PM'],
+    ['AO','Afternoon Observer','12:00 PM – 6:00 PM'],
+    ['AON★','Day Night Observer','12:00 PM – next day 12:00 PM'],
+    ['NMO★','Night Morning Observer','Prev. day 12:00 PM – Today 12:00 PM'],
+    ['MO1','Morning Supporting Observer','6:00 AM – 12:00 PM'],
+    ['AO2','Afternoon Supporting Observer','12:00 PM – 6:00 PM'],
+    ['M1','Morning Supporter','6:00 AM – 12:00 PM'],
+    ['A1','Afternoon Supporter','12:00 PM – 6:00 PM'],
+    ['Off / xx','Duty Off','—']
+  ];
+  const legendTableHtml=`<div style="margin-top:20px;padding:14px 0">
+    <div style="font-size:13px;font-weight:700;color:var(--text);margin-bottom:10px;padding:0 4px">📋 Duty Legend — Full Reference</div>
+    <table style="border-collapse:collapse;width:100%;font-size:12px">
+      <thead>
+        <tr style="background:var(--bg3)">
+          <th style="border:1px solid var(--border);padding:6px 10px;text-align:center;color:var(--text2);width:40px">S.N</th>
+          <th style="border:1px solid var(--border);padding:6px 10px;text-align:left;color:var(--text2);width:80px">Duty</th>
+          <th style="border:1px solid var(--border);padding:6px 10px;text-align:left;color:var(--text2)">Description</th>
+          <th style="border:1px solid var(--border);padding:6px 10px;text-align:left;color:var(--text2);width:220px">Time</th>
+        </tr>
+      </thead>
+      <tbody>
+        ${legendRows.map((r,i)=>`<tr>
+          <td style="border:1px solid var(--border);padding:6px 10px;text-align:center;color:var(--text3)">${i+1}</td>
+          <td style="border:1px solid var(--border);padding:6px 10px;font-weight:700;color:var(--accent)">${r[0]}</td>
+          <td style="border:1px solid var(--border);padding:6px 10px;color:var(--text)">${r[1]}</td>
+          <td style="border:1px solid var(--border);padding:6px 10px;color:var(--text2)">${r[2]}</td>
+        </tr>`).join('')}
+      </tbody>
+    </table>
+  </div>`;
+
   document.getElementById('fr-table').innerHTML=`<table class="roster-table">
     <thead><tr>${h1}</tr><tr>${h2}</tr></thead>
     <tbody>${tbody}</tbody>
-  </table>`;
+  </table>${legendTableHtml}`;
   setTimeout(()=>{const el=document.querySelector('#fr-table .today-row');if(el)el.scrollIntoView({block:'center',behavior:'smooth'});},150);
 }
 
@@ -1310,8 +1379,9 @@ function renderFullRoster(){
 function showDayModal(iso){
   const[y,m,d]=iso.split('-').map(Number);const dt=new Date(y,m-1,d);
   document.getElementById('modal-title').textContent='📅 '+DAYS[dt.getDay()]+', '+toNepali(iso)+' ('+d+'/'+m+'/'+y+')';
+  const both=S.user&&isStaffInBothSections(S.user.name);
   const sec=S.user?S.user.section||'avia':'avia';
-  const all=getAllDutiesForSection(iso,sec);
+  const all=both?getAllDutiesBothSections(iso):getAllDutiesForSection(iso,sec);
   const onDuty=all.filter(x=>!isOff(x.shift)).sort((a,b)=>a.name.localeCompare(b.name));
   const offDuty=all.filter(x=>isOff(x.shift));
   let html='';
@@ -1382,8 +1452,9 @@ function showCalModal(iso){
   </div>`;
 
   // Staff duty list
+  const both=S.user&&isStaffInBothSections(S.user.name);
   const sec=S.user?S.user.section||'avia':'avia';
-  const all=getAllDutiesForSection(iso,sec);
+  const all=both?getAllDutiesBothSections(iso):getAllDutiesForSection(iso,sec);
   const onDuty=all.filter(x=>!isOff(x.shift)).sort((a,b)=>a.name.localeCompare(b.name));
   const offDuty=all.filter(x=>isOff(x.shift));
 
