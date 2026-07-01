@@ -449,7 +449,8 @@ textarea.fi{resize:vertical;min-height:80px}
           <span class="zoom-label" id="fr-zoom-lbl">100%</span>
           <button class="zoom-btn" onclick="frZoomIn()">+</button>
         </div>
-        <strong style="color:var(--green)">AO2</strong>=Afternoon Supporting Observer
+        <button class="btn-outline" onclick="frGoToday()" style="padding:5px 12px;font-size:12px">📅 Today</button>
+        <button class="btn-outline" onclick="frGoLegend()" style="padding:5px 12px;font-size:12px">📋 Duty Legend</button>
       </div>
       <div class="roster-outer" id="fr-outer">
         <div class="roster-scale-wrap" id="fr-scale"><div id="fr-table"></div></div>
@@ -1248,6 +1249,7 @@ function frZoomIn(){S.frZoom=Math.min(2,+(S.frZoom+0.1).toFixed(1));applyZoom();
 function frZoomOut(){S.frZoom=Math.max(0.4,+(S.frZoom-0.1).toFixed(1));applyZoom();}
 function applyZoom(){document.getElementById('fr-scale').style.transform=`scale(${S.frZoom})`;document.getElementById('fr-zoom-lbl').textContent=Math.round(S.frZoom*100)+'%';}
 function frGoToday(){const c=getCurrentBsMonth();S.frBsYear=c.bsY;S.frBsMonth=c.bsM;renderFullRoster();setTimeout(()=>{const el=document.querySelector('#fr-table .today-row');if(el)el.scrollIntoView({block:'center',behavior:'smooth'});},200);}
+function frGoLegend(){const el=document.getElementById('fr-legend');if(el)el.scrollIntoView({behavior:'smooth',block:'start'});}
 
 function renderFullRoster(){
   if(!document.getElementById('tab-fullroster').classList.contains('active'))return;
@@ -1281,15 +1283,15 @@ function renderFullRoster(){
   }
 
   // Header row 1: Date + group span headers
-  let h1=`<th class="date-col-hdr" rowspan="2">📅 Date</th>`;
-  if(sdmList.length) h1+=`<th class="sec-span-hdr sdm-hdr" colspan="${sdmList.length}">⭐ Sr. Div. Met. (${sdmList.length})</th>`;
-  if(foreList.length) h1+=`<th class="sec-span-hdr fore-hdr" colspan="${foreList.length}">🌤️ Forecaster (${foreList.length})</th>`;
-  if(obsList.length) h1+=`<th class="sec-span-hdr obs-hdr" colspan="${obsList.length}">🔭 Observer (${obsList.length})</th>`;
+  let h1=`<th class="date-col-hdr" rowspan="2" style="position:sticky;top:0;z-index:6">📅 Date</th>`;
+  if(sdmList.length) h1+=`<th class="sec-span-hdr sdm-hdr" colspan="${sdmList.length}" style="position:sticky;top:0">⭐ Sr. Div. Met. (${sdmList.length})</th>`;
+  if(foreList.length) h1+=`<th class="sec-span-hdr fore-hdr" colspan="${foreList.length}" style="position:sticky;top:0">🌤️ Forecaster (${foreList.length})</th>`;
+  if(obsList.length) h1+=`<th class="sec-span-hdr obs-hdr" colspan="${obsList.length}" style="position:sticky;top:0">🔭 Observer (${obsList.length})</th>`;
 
-  // Header row 2: individual name columns
+  // Header row 2: individual name columns — full names
   let h2='';
   for(const{name}of allStaff){
-    h2+=`<th title="${name}" style="min-width:38px;max-width:56px">${initials(name)}<br/><span style="font-size:8px;font-weight:400;color:var(--text3)">${name.split(' ')[0]}</span></th>`;
+    h2+=`<th title="${name}" style="min-width:80px;max-width:120px;white-space:normal;word-break:break-word;font-size:10px;font-weight:600;line-height:1.3">${name}</th>`;
   }
 
   // Data rows
@@ -1336,23 +1338,29 @@ function renderFullRoster(){
     ['A1','Afternoon Supporter','12:00 PM – 6:00 PM'],
     ['Off / xx','Duty Off','—']
   ];
-  const legendTableHtml=`<div style="margin-top:20px;padding:14px 0">
-    <div style="font-size:13px;font-weight:700;color:var(--text);margin-bottom:10px;padding:0 4px">📋 Duty Legend — Full Reference</div>
-    <table style="border-collapse:collapse;width:100%;font-size:12px">
+  const legendTableHtml=`<div id="fr-legend" style="margin-top:24px;padding:14px 4px">
+    <div style="font-size:13px;font-weight:700;color:var(--text);margin-bottom:10px">📋 Duty Legend — Full Reference</div>
+    <table style="border-collapse:collapse;width:100%;font-size:11px;table-layout:fixed">
+      <colgroup>
+        <col style="width:40px"/>
+        <col style="width:70px"/>
+        <col style="width:220px"/>
+        <col style="width:240px"/>
+      </colgroup>
       <thead>
         <tr style="background:var(--bg3)">
-          <th style="border:1px solid var(--border);padding:6px 10px;text-align:center;color:var(--text2);width:40px">S.N</th>
-          <th style="border:1px solid var(--border);padding:6px 10px;text-align:left;color:var(--text2);width:80px">Duty</th>
-          <th style="border:1px solid var(--border);padding:6px 10px;text-align:left;color:var(--text2)">Description</th>
-          <th style="border:1px solid var(--border);padding:6px 10px;text-align:left;color:var(--text2);width:220px">Time</th>
+          <th style="border:1px solid var(--border);padding:7px 8px;text-align:center;color:var(--text2)">S.N</th>
+          <th style="border:1px solid var(--border);padding:7px 8px;text-align:left;color:var(--text2)">Duty</th>
+          <th style="border:1px solid var(--border);padding:7px 8px;text-align:left;color:var(--text2)">Description</th>
+          <th style="border:1px solid var(--border);padding:7px 8px;text-align:left;color:var(--text2)">Time</th>
         </tr>
       </thead>
       <tbody>
-        ${legendRows.map((r,i)=>`<tr>
-          <td style="border:1px solid var(--border);padding:6px 10px;text-align:center;color:var(--text3)">${i+1}</td>
-          <td style="border:1px solid var(--border);padding:6px 10px;font-weight:700;color:var(--accent)">${r[0]}</td>
-          <td style="border:1px solid var(--border);padding:6px 10px;color:var(--text)">${r[1]}</td>
-          <td style="border:1px solid var(--border);padding:6px 10px;color:var(--text2)">${r[2]}</td>
+        ${legendRows.map((r,i)=>`<tr style="background:${i%2===0?'var(--bg2)':'var(--bg3)'}">
+          <td style="border:1px solid var(--border);padding:7px 8px;text-align:center;color:var(--text3)">${i+1}</td>
+          <td style="border:1px solid var(--border);padding:7px 8px;font-weight:700;color:var(--accent)">${r[0]}</td>
+          <td style="border:1px solid var(--border);padding:7px 8px;color:var(--text)">${r[1]}</td>
+          <td style="border:1px solid var(--border);padding:7px 8px;color:var(--text2);font-size:10px">${r[2]}</td>
         </tr>`).join('')}
       </tbody>
     </table>
