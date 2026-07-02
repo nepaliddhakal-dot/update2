@@ -187,6 +187,7 @@ input,select,textarea{font-family:'Inter',sans-serif}
 .roster-scale-wrap{transform-origin:top left;display:inline-block;min-width:100%}
 .roster-table{border-collapse:collapse;font-size:11px;white-space:nowrap}
 .roster-table th{background:var(--bg3);color:var(--text2);font-size:10px;font-weight:600;padding:5px 4px;border:1px solid var(--border);position:sticky;top:0;z-index:3;text-align:center;min-width:40px}
+.roster-table thead{position:sticky;top:0;z-index:4}
 .roster-table th.date-col-hdr{position:sticky;left:0;z-index:5;background:var(--bg3);text-align:center;min-width:66px;padding:5px 6px}
 .roster-table th.sec-span-hdr{font-size:9px;font-weight:700;letter-spacing:.4px;padding:3px 6px;border-top:2px solid}
 .roster-table th.sdm-hdr{color:var(--purple);background:rgba(167,139,250,.07);border-top-color:rgba(167,139,250,.4)}
@@ -476,6 +477,7 @@ textarea.fi{resize:vertical;min-height:80px}
     <button class="at-btn" onclick="switchAdminTab('months',this)">📅 Months</button>
     <button class="at-btn" onclick="switchAdminTab('admins',this)">👑 Admins</button>
     <button class="at-btn" onclick="switchAdminTab('requests',this)">📨 Requests</button>
+    <button class="at-btn" onclick="switchAdminTab('roster',this)">📊 Full Roster</button>
   </div>
   <div class="admin-body">
     <div class="admin-panel active" id="ap-upload">
@@ -565,6 +567,26 @@ textarea.fi{resize:vertical;min-height:80px}
       <div class="a-info">Staff ले पठाएका duty change अनुरोधहरू। Approve गर्दा roster automatically update हुन्छ।</div>
       <div id="requests-list"><div style="color:var(--text3);font-size:13px">Tab खोल्दा load हुन्छ।</div></div>
     </div>
+    <div class="admin-panel" id="ap-roster">
+      <div class="a-info">Full roster view — all sections, all staff.</div>
+      <div class="roster-controls" style="padding:8px 0">
+        <div class="zoom-wrap">
+          <button class="zoom-btn" onclick="adminFrZoomOut()">−</button>
+          <span class="zoom-label" id="afr-zoom-lbl">100%</span>
+          <button class="zoom-btn" onclick="adminFrZoomIn()">+</button>
+        </div>
+        <button class="btn-outline" onclick="adminFrGoToday()" style="padding:5px 12px;font-size:12px">📅 Today</button>
+        <button class="btn-outline" onclick="adminFrGoLegend()" style="padding:5px 12px;font-size:12px">📋 Legend</button>
+        <button class="nav-arrow" onclick="adminFrPrev()">‹</button>
+        <span id="afr-title" style="font-size:13px;font-weight:600"></span>
+        <button class="nav-arrow" onclick="adminFrNext()">›</button>
+      </div>
+      <div style="overflow:auto;position:relative;flex:1">
+        <div id="afr-scale" style="transform-origin:top left;display:inline-block;min-width:100%">
+          <div id="afr-table"></div>
+        </div>
+      </div>
+    </div>
     <div class="admin-panel" id="ap-admins">
       <div class="a-card">
         <div class="a-card-title">👑 Master Admin Credentials</div>
@@ -581,6 +603,7 @@ textarea.fi{resize:vertical;min-height:80px}
           <div class="fg"><label class="fl">Username</label><input class="fi" id="sa-user" placeholder="Name"/></div>
           <div class="fg"><label class="fl">PIN</label><div class="fi-pw-wrap"><input class="fi" id="sa-pin" type="password" placeholder="4–6 digits"/><button class="fi-eye" onclick="togglePwVis('sa-pin',this)">👁</button></div></div>
         </div>
+        <div class="fg"><label class="fl">Email</label><input class="fi" id="sa-email" placeholder="subadmin@email.com" type="email"/></div>
         <div class="fg"><label class="fl">Permission</label>
           <select class="fi" id="sa-perm"><option value="all">All rosters</option><option value="observer">Observer only</option><option value="forecaster">Forecaster only</option><option value="sdm">Sr. Div. Met. only</option></select></div>
         <button class="btn-green" onclick="addSubAdmin()" style="width:auto;align-self:flex-start">Add Sub-Admin</button>
@@ -1000,7 +1023,7 @@ function switchAdminTab(tab,el){
   document.querySelectorAll('.admin-panel').forEach(p=>p.classList.remove('active'));
   el.classList.add('active');document.getElementById('ap-'+tab).classList.add('active');
   if(tab==='staff'){renderAdminStaff();checkUnassigned();}
- if(tab==='months')renderMonthsList();if(tab==='admins')renderAdminsTab();if(tab==='edit')loadEditMonths();if(tab==='requests')loadSwapRequests();
+ if(tab==='months')renderMonthsList();if(tab==='admins')renderAdminsTab();if(tab==='edit')loadEditMonths();if(tab==='requests')loadSwapRequests();if(tab==='roster'){const c=getCurrentBsMonth();afrBsYear=c.bsY;afrBsMonth=c.bsM;renderAdminFullRoster();}
 }
 
 // ── TODAY TAB ──
@@ -1250,7 +1273,73 @@ function frZoomOut(){S.frZoom=Math.max(0.4,+(S.frZoom-0.1).toFixed(1));applyZoom
 function applyZoom(){document.getElementById('fr-scale').style.transform=`scale(${S.frZoom})`;document.getElementById('fr-zoom-lbl').textContent=Math.round(S.frZoom*100)+'%';}
 function frGoToday(){const c=getCurrentBsMonth();S.frBsYear=c.bsY;S.frBsMonth=c.bsM;renderFullRoster();setTimeout(()=>{const el=document.querySelector('#fr-table .today-row');if(el)el.scrollIntoView({block:'center',behavior:'smooth'});},200);}
 function frGoLegend(){const el=document.getElementById('fr-legend');if(el)el.scrollIntoView({behavior:'smooth',block:'start'});}
-
+// ── ADMIN FULL ROSTER ──
+let afrZoom=1,afrBsYear=2083,afrBsMonth=0;
+function adminFrZoomIn(){afrZoom=Math.min(2,+(afrZoom+0.1).toFixed(1));document.getElementById('afr-scale').style.transform=`scale(${afrZoom})`;document.getElementById('afr-zoom-lbl').textContent=Math.round(afrZoom*100)+'%';}
+function adminFrZoomOut(){afrZoom=Math.max(0.4,+(afrZoom-0.1).toFixed(1));document.getElementById('afr-scale').style.transform=`scale(${afrZoom})`;document.getElementById('afr-zoom-lbl').textContent=Math.round(afrZoom*100)+'%';}
+function adminFrPrev(){afrBsMonth--;if(afrBsMonth<0){afrBsMonth=11;afrBsYear--;}renderAdminFullRoster();}
+function adminFrNext(){afrBsMonth++;if(afrBsMonth>11){afrBsMonth=0;afrBsYear++;}renderAdminFullRoster();}
+function adminFrGoToday(){const c=getCurrentBsMonth();afrBsYear=c.bsY;afrBsMonth=c.bsM;renderAdminFullRoster();setTimeout(()=>{const el=document.querySelector('#afr-table .today-row');if(el)el.scrollIntoView({block:'center',behavior:'smooth'});},200);}
+function adminFrGoLegend(){const el=document.getElementById('afr-legend');if(el)el.scrollIntoView({behavior:'smooth',block:'start'});}
+function renderAdminFullRoster(){
+  const bsY=afrBsYear,bsM=afrBsMonth;
+  const{np,en}=buildBsHeader(bsY,bsM);
+  document.getElementById('afr-title').textContent=np+' ('+en+')';
+  const bsDays=bsMonthDays(bsY,bsM);const today=todayISO();
+  const seen=new Set();
+  const sdmList=[],foreList=[],obsList=[];
+  for(const sec of['avia','weather']){for(const n of(S.staff[sec]?.sdm||[])){if(!seen.has(n)){seen.add(n);sdmList.push(n);}}}
+  for(const sec of['avia','weather']){for(const n of(S.staff[sec]?.forecaster||[])){if(!seen.has(n)){seen.add(n);foreList.push(n);}}}
+  for(const sec of['avia','weather']){for(const n of(S.staff[sec]?.observer||[])){if(!seen.has(n)){seen.add(n);obsList.push(n);}}}
+  const allStaff=[...sdmList.map(n=>({name:n,role:'sdm'})),...foreList.map(n=>({name:n,role:'forecaster'})),...obsList.map(n=>({name:n,role:'observer'}))];
+  if(!allStaff.length){document.getElementById('afr-table').innerHTML='<div style="padding:20px;color:var(--text3)">No staff found.</div>';return;}
+  let h1=`<th class="date-col-hdr" rowspan="2" style="position:sticky;top:0;left:0;z-index:6">📅 Date</th>`;
+  if(sdmList.length)h1+=`<th class="sec-span-hdr sdm-hdr" colspan="${sdmList.length}" style="position:sticky;top:0">⭐ Sr. Div. Met. (${sdmList.length})</th>`;
+  if(foreList.length)h1+=`<th class="sec-span-hdr fore-hdr" colspan="${foreList.length}" style="position:sticky;top:0">🌤️ Forecaster (${foreList.length})</th>`;
+  if(obsList.length)h1+=`<th class="sec-span-hdr obs-hdr" colspan="${obsList.length}" style="position:sticky;top:0">🔭 Observer (${obsList.length})</th>`;
+  let h2='';
+  for(const{name}of allStaff){h2+=`<th title="${name}" style="min-width:80px;max-width:120px;white-space:normal;word-break:break-word;font-size:10px;position:sticky;top:0">${name}</th>`;}
+  let tbody='';
+  for(let bsD=1;bsD<=bsDays;bsD++){
+    const iso=bsToAd(bsY,bsM,bsD);
+    const isT=iso===today;const dt=new Date(iso);
+    const[,m,d]=iso.split('-').map(Number);
+    const dateCellHtml=`${toNpNum(bsD)}<br/><span style="font-size:8px;color:${isT?'var(--accent)':'var(--text3)'};font-weight:400">${DAYS_NP[dt.getDay()]} ${d}/${m}</span>`;
+    let tr=`<td class="date-cell">${dateCellHtml}</td>`;
+    for(const{name,role}of allStaff){
+      let shift=getDuty(iso,name,role);
+      if(shift===null){const f=getDutyAny(iso,name);if(f)shift=f.shift;}
+      let cell;
+      if(shift===null)cell='<span class="stag stag-none">?</span>';
+      else if(isOff(shift))cell='<span class="stag stag-off">Off</span>';
+      else if(String(shift).includes('*'))cell=`<span class="stag stag-star">${shift}</span>`;
+      else cell=`<span class="stag stag-on">${shift}</span>`;
+      tr+=`<td>${cell}</td>`;
+    }
+    tbody+=`<tr class="${isT?'today-row':''}">${tr}</tr>`;
+  }
+  const legendRows=[['MF','Morning Forecaster','6:00 AM – 12:00 PM'],['AF','Afternoon Forecaster','12:00 PM – 6:00 PM'],['AFN★','Day Night Forecaster','12:00 PM – next day 12:00 PM'],['NMF★','Night Morning Forecaster','Prev. day 12:00 PM – Today 12:00 PM'],['MA','Morning Aviation Forecaster','6:00 AM – 12:00 PM'],['DA','Day Aviation Forecaster','12:00 PM – 6:00 PM'],['SM','Sr. Met. Morning','6:00 AM – 12:00 PM'],['SA','Sr. Met. Afternoon','12:00 PM – 6:00 PM'],['SD','Sr. Met. Day','12:00 PM – 6:00 PM'],['SMA','Sr. Met. Aviation Morning','6:00 AM – 12:00 PM'],['SDA','Sr. Met. Aviation Day','12:00 PM – 6:00 PM'],['MO','Morning Observer','6:00 AM – 12:00 PM'],['AO','Afternoon Observer','12:00 PM – 6:00 PM'],['AON★','Day Night Observer','12:00 PM – next day 12:00 PM'],['NMO★','Night Morning Observer','Prev. day 12:00 PM – Today 12:00 PM'],['MO1','Morning Supporting Observer','6:00 AM – 12:00 PM'],['AO2','Afternoon Supporting Observer','12:00 PM – 6:00 PM'],['M1','Morning Supporter','6:00 AM – 12:00 PM'],['A1','Afternoon Supporter','12:00 PM – 6:00 PM'],['Off/xx','Duty Off','—']];
+  document.getElementById('afr-table').innerHTML=`<table class="roster-table"><thead><tr>${h1}</tr><tr>${h2}</tr></thead><tbody>${tbody}</tbody></table>
+  <div id="afr-legend" style="margin-top:24px;padding:14px 4px">
+    <div style="font-size:13px;font-weight:700;color:var(--text);margin-bottom:10px">📋 Duty Legend</div>
+    <table style="border-collapse:collapse;width:100%;font-size:11px;table-layout:fixed">
+      <colgroup><col style="width:40px"/><col style="width:70px"/><col style="width:220px"/><col style="width:240px"/></colgroup>
+      <thead><tr style="background:var(--bg3)">
+        <th style="border:1px solid var(--border);padding:7px 8px;color:var(--text2)">S.N</th>
+        <th style="border:1px solid var(--border);padding:7px 8px;text-align:left;color:var(--text2)">Duty</th>
+        <th style="border:1px solid var(--border);padding:7px 8px;text-align:left;color:var(--text2)">Description</th>
+        <th style="border:1px solid var(--border);padding:7px 8px;text-align:left;color:var(--text2)">Time</th>
+      </tr></thead>
+      <tbody>${legendRows.map((r,i)=>`<tr style="background:${i%2===0?'var(--bg2)':'var(--bg3)'}">
+        <td style="border:1px solid var(--border);padding:7px 8px;text-align:center;color:var(--text3)">${i+1}</td>
+        <td style="border:1px solid var(--border);padding:7px 8px;font-weight:700;color:var(--accent)">${r[0]}</td>
+        <td style="border:1px solid var(--border);padding:7px 8px;color:var(--text)">${r[1]}</td>
+        <td style="border:1px solid var(--border);padding:7px 8px;color:var(--text2);font-size:10px">${r[2]}</td>
+      </tr>`).join('')}</tbody>
+    </table>
+  </div>`;
+  setTimeout(()=>{const el=document.querySelector('#afr-table .today-row');if(el)el.scrollIntoView({block:'center',behavior:'smooth'});},150);
+}
 function renderFullRoster(){
   if(!document.getElementById('tab-fullroster').classList.contains('active'))return;
   const bsY=S.frBsYear,bsM=S.frBsMonth;
@@ -1854,7 +1943,17 @@ function renderAdminsTab(){
   document.getElementById('ma-user').value=S.adminCreds.username||'';
   const el=document.getElementById('sub-admin-list');
   if(!S.subAdmins.length){el.innerHTML='<div style="color:var(--text3);font-size:13px">No sub-admins yet.</div>';return;}
-  el.innerHTML=S.subAdmins.map((sa,i)=>`<div style="display:flex;align-items:center;padding:8px 0;border-bottom:1px solid rgba(30,48,72,.5)"><div style="flex:1"><div style="font-size:13px;font-weight:500">${sa.username}</div><div style="font-size:11px;color:var(--text3)">${sa.permission||'All rosters'}</div></div><button class="btn-red" onclick="removeSubAdmin(${i})">Remove</button></div>`).join('');
+  el.innerHTML=S.subAdmins.map((sa,i)=>`<div style="display:flex;align-items:center;padding:8px 0;border-bottom:1px solid rgba(30,48,72,.5)">
+    <div style="flex:1">
+      <div style="font-size:13px;font-weight:500">${sa.username}</div>
+      <div style="font-size:11px;color:var(--text3)">${sa.permission||'All rosters'}</div>
+      ${sa.email?`<div style="font-size:11px;color:var(--accent)">${sa.email}</div>`:''}
+    </div>
+    <div style="display:flex;gap:6px">
+      ${sa.email?`<button class="btn-yellow" onclick="sendSubAdminResetCode(${i})" style="font-size:11px;padding:4px 8px">Reset PIN</button>`:''}
+      <button class="btn-red" onclick="removeSubAdmin(${i})">Remove</button>
+    </div>
+  </div>`).join('');
 }
 function validatePassword(p){
   if(p.length<6)return'Minimum 6 characters';if(!/[A-Z]/.test(p))return'At least 1 uppercase letter';
@@ -1869,11 +1968,30 @@ async function saveMasterCreds(){
   else alert('✅ Username saved!');
 }
 function addSubAdmin(){
-  const u=document.getElementById('sa-user').value.trim();const p=document.getElementById('sa-pin').value.trim();const perm=document.getElementById('sa-perm').value;
+  const u=document.getElementById('sa-user').value.trim();
+  const p=document.getElementById('sa-pin').value.trim();
+  const perm=document.getElementById('sa-perm').value;
+  const email=document.getElementById('sa-email').value.trim();
   if(!u||!p){alert('Fill username and PIN');return;}
-  S.subAdmins.push({username:u,pin:p,permission:perm});localStorage.setItem('mfd_subadmins',JSON.stringify(S.subAdmins));
-  document.getElementById('sa-user').value='';document.getElementById('sa-pin').value='';
+  S.subAdmins.push({username:u,pin:p,permission:perm,email});
+  localStorage.setItem('mfd_subadmins',JSON.stringify(S.subAdmins));
+  document.getElementById('sa-user').value='';
+  document.getElementById('sa-pin').value='';
+  document.getElementById('sa-email').value='';
+  // Save to Google Sheet
+  if(S.scriptUrl){fetch(S.scriptUrl,{method:'POST',mode:'no-cors',body:JSON.stringify({action:'saveSubAdmins',subAdmins:S.subAdmins})}).catch(()=>{});}
   renderAdminsTab();alert('✅ Sub-admin added!');
+}
+async function sendSubAdminResetCode(i){
+  const sa=S.subAdmins[i];
+  if(!sa||!sa.email){alert('No email for this sub-admin');return;}
+  if(!confirm('Send reset code to '+sa.email+'?'))return;
+  try{
+    const res=await fetch(S.scriptUrl+'?action=sendCode&email='+encodeURIComponent(sa.email));
+    const d=await res.json();
+    if(d.success)alert('✅ Code sent to '+sa.email);
+    else alert('❌ '+d.error);
+  }catch(e){alert('❌ Network error');}
 }
 function removeSubAdmin(i){if(!confirm('Remove?'))return;S.subAdmins.splice(i,1);localStorage.setItem('mfd_subadmins',JSON.stringify(S.subAdmins));renderAdminsTab();}
 function clearAllData(){if(!confirm('Clear ALL local data?'))return;localStorage.clear();location.reload();}
