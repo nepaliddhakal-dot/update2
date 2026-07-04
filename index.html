@@ -89,26 +89,23 @@ input,select,textarea{font-family:'Inter',sans-serif}
 .forgot-link{font-size:12px;color:var(--accent);text-align:center;cursor:pointer;margin-top:4px}
 .login-err{font-size:12px;color:var(--red);text-align:center;min-height:16px}
 #screen-app{background:var(--bg)}
-.app-hdr{display:flex;align-items:center;justify-content:space-between;padding:10px 16px;padding-top:max(10px,env(safe-area-inset-top));background:var(--bg);border-bottom:1px solid var(--border);flex-shrink:0}
-.ah-left .welcome{font-size:11px;color:var(--text2)}
-.ah-left .uname{font-size:17px;font-weight:700;color:var(--text)}
-.ah-right{display:flex;align-items:center;gap:8px}
+.app-hdr{display:flex;align-items:center;justify-content:space-between;padding:7px 12px;padding-top:max(7px,env(safe-area-inset-top));background:var(--bg);border-bottom:1px solid var(--border);flex-shrink:0;gap:8px}
+.ah-left{display:flex;align-items:center;gap:8px;min-width:0;flex:1;overflow:hidden}
+.ah-left .welcome{font-size:10px;color:var(--text2);line-height:1}
+.ah-left .uname{font-size:15px;font-weight:800;color:var(--text);line-height:1.2;white-space:nowrap}
+.ah-right{display:flex;align-items:center;gap:6px;flex-shrink:0}
+.duty-inline{display:none;background:rgba(56,189,248,.08);border:1px solid rgba(56,189,248,.2);border-radius:7px;padding:3px 9px;font-size:11px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:200px;flex-shrink:0}
+.duty-inline.day-off-inline{background:rgba(52,211,153,.08);border-color:rgba(52,211,153,.25)}
+.section-inline{display:none;font-size:10px;font-weight:600;padding:2px 8px;border-radius:6px;border:1px solid;white-space:nowrap;flex-shrink:0}
 .role-badge{font-size:11px;font-weight:600;padding:4px 10px;border-radius:100px;border:1px solid}
 .role-badge.avia{background:var(--avia-dim);color:var(--avia);border-color:rgba(249,115,22,.3)}
 .role-badge.weather{background:var(--weather-dim);color:var(--weather);border-color:rgba(56,189,248,.3)}
 .icon-btn{background:var(--card2);border:none;color:var(--text2);width:34px;height:34px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:16px}
 .icon-btn:active{background:var(--border)}
-.section-strip{padding:5px 16px;font-size:11px;font-weight:600;letter-spacing:.3px;flex-shrink:0}
-.section-strip.avia{background:var(--avia-dim);color:var(--avia);border-bottom:1px solid rgba(249,115,22,.2)}
-.section-strip.weather{background:var(--weather-dim);color:var(--weather);border-bottom:1px solid rgba(56,189,248,.2)}
-.duty-banner{margin:10px 12px 0;border-radius:var(--radius);padding:10px 14px;display:flex;align-items:center;gap:8px;flex-shrink:0}
-.duty-banner.on-duty{background:rgba(56,189,248,.1);border:1px solid rgba(56,189,248,.25)}
-.duty-banner.day-off{background:rgba(52,211,153,.08);border:1px solid rgba(52,211,153,.2)}
-.duty-banner.no-data{background:var(--card2);border:1px solid var(--border)}
-.db-icon{font-size:16px}
-.db-text .db-title{font-size:13px;font-weight:600}
-.db-text .db-sub{font-size:12px;color:var(--text2);margin-top:1px}
-.db-text .db-sub span{color:var(--accent);font-weight:600}
+.section-strip{display:none}
+.duty-banner{display:none}
+.db-icon{display:none}
+.db-text{display:none}
 .tab-bar{display:flex;border-bottom:1px solid var(--border);flex-shrink:0;background:var(--bg);margin-top:10px;overflow-x:auto;scrollbar-width:none}
 .tab-bar::-webkit-scrollbar{display:none}
 .tab{flex:1;min-width:55px;padding:8px 4px 7px;text-align:center;cursor:pointer;font-size:10px;font-weight:500;color:var(--text2);border-bottom:2px solid transparent;transition:all .2s;display:flex;flex-direction:column;align-items:center;gap:2px;white-space:nowrap}
@@ -186,8 +183,16 @@ input,select,textarea{font-family:'Inter',sans-serif}
 .roster-outer{flex:1;overflow:auto;position:relative}
 .roster-scale-wrap{transform-origin:top left;display:inline-block;min-width:100%}
 .roster-table{border-collapse:collapse;font-size:11px;white-space:nowrap}
-.roster-table th{background:var(--bg3);color:var(--text2);font-size:10px;font-weight:600;padding:5px 4px;border:1px solid var(--border);position:sticky;top:0;z-index:3;text-align:center;min-width:40px}
+.roster-table th{background:var(--bg3);color:var(--text2);font-size:10px;font-weight:600;padding:5px 4px;border:1px solid var(--border);position:sticky;top:0;z-index:3;text-align:center;min-width:40px;box-shadow:0 2px 4px rgba(0,0,0,.35)}
 .roster-table thead{position:sticky;top:0;z-index:4}
+.roster-table .date-cell{position:sticky;left:0;background:var(--bg2);z-index:2;box-shadow:2px 0 4px rgba(0,0,0,.25)}
+.roster-table thead .date-col-hdr{position:sticky;left:0;top:0;z-index:5;background:var(--bg3);box-shadow:2px 2px 4px rgba(0,0,0,.35)}
+.today-row td{background:rgba(56,189,248,.13)!important;box-shadow:inset 0 0 0 1px rgba(56,189,248,.25)}
+.today-row .date-cell{background:rgba(56,189,248,.2)!important;color:var(--accent)!important;font-weight:800!important}
+[data-theme="light"] .today-row td{background:rgba(2,132,199,.10)!important}
+[data-theme="light"] .today-row .date-cell{background:rgba(2,132,199,.18)!important}
+[data-theme="light"] .roster-table .date-cell{background:var(--bg2)}
+[data-theme="light"] .roster-table thead .date-col-hdr{background:var(--bg3)}
 .roster-table th.date-col-hdr{position:sticky;left:0;z-index:5;background:var(--bg3);text-align:center;min-width:66px;padding:5px 6px}
 .roster-table th.sec-span-hdr{font-size:9px;font-weight:700;letter-spacing:.4px;padding:3px 6px;border-top:2px solid}
 .roster-table th.sdm-hdr{color:var(--purple);background:rgba(167,139,250,.07);border-top-color:rgba(167,139,250,.4)}
@@ -195,8 +200,7 @@ input,select,textarea{font-family:'Inter',sans-serif}
 .roster-table th.obs-hdr{color:var(--green);background:rgba(52,211,153,.07);border-top-color:rgba(52,211,153,.4)}
 .roster-table td{border:1px solid var(--border);padding:4px 3px;text-align:center;background:var(--bg2)}
 .roster-table td.date-cell{position:sticky;left:0;background:var(--bg3);color:var(--text);font-weight:600;text-align:center;z-index:2;padding:4px 6px;font-size:10px;min-width:66px;line-height:1.4}
-.roster-table tr.today-row td{background:rgba(56,189,248,.05)!important}
-.roster-table tr.today-row td.date-cell{background:rgba(56,189,248,.18)!important;color:var(--accent)!important}
+/* today-row handled above */
 .stag{display:inline-block;padding:2px 4px;border-radius:4px;font-size:10px;font-weight:600}
 .stag-on{background:rgba(56,189,248,.15);color:var(--accent)}
 .stag-star{background:rgba(167,139,250,.15);color:var(--purple)}
@@ -348,7 +352,16 @@ textarea.fi{resize:vertical;min-height:80px}
 <!-- STAFF APP -->
 <div class="screen" id="screen-app">
   <div class="app-hdr">
-    <div class="ah-left"><div class="welcome">Welcome,</div><div class="uname" id="hdr-name">--</div></div>
+    <div class="ah-left">
+      <div style="flex-shrink:0">
+        <div class="welcome">Welcome,</div>
+        <div class="uname" id="hdr-name">--</div>
+      </div>
+      <div class="duty-inline" id="duty-inline">
+        <span style="color:var(--text2)">Shift: </span><span id="duty-inline-shift" style="font-weight:700"></span>
+      </div>
+      <div class="section-inline" id="section-inline"></div>
+    </div>
     <div class="ah-right">
       <span class="role-badge" id="hdr-role-badge">--</span>
       <button class="icon-btn" id="theme-toggle-btn" onclick="toggleTheme()" title="Theme">🌙</button>
@@ -356,10 +369,10 @@ textarea.fi{resize:vertical;min-height:80px}
       <button class="icon-btn" onclick="logout()" title="Logout">⏏️</button>
     </div>
   </div>
-  <div class="section-strip" id="section-strip">✈️ TIA Aviation Met Section</div>
-  <div id="duty-banner" class="duty-banner no-data">
-    <span class="db-icon">📋</span>
-    <div class="db-text"><div class="db-title" id="db-title">Loading...</div><div class="db-sub" id="db-sub"></div></div>
+  <div id="section-strip" style="display:none"></div>
+  <div id="duty-banner" style="display:none">
+    <span class="db-icon"></span>
+    <div class="db-text"><div id="db-title"></div><div id="db-sub"></div></div>
   </div>
   <div class="tab-bar">
     <div class="tab active" onclick="switchTab('today',this)"><span class="ti">🕐</span>Today</div>
@@ -567,23 +580,26 @@ textarea.fi{resize:vertical;min-height:80px}
       <div class="a-info">Staff ले पठाएका duty change अनुरोधहरू। Approve गर्दा roster automatically update हुन्छ।</div>
       <div id="requests-list"><div style="color:var(--text3);font-size:13px">Tab खोल्दा load हुन्छ।</div></div>
     </div>
-    <div class="admin-panel" id="ap-roster">
-      <div class="a-info">Full roster view — all sections, all staff.</div>
-      <div class="roster-controls" style="padding:8px 0">
-        <div class="zoom-wrap">
-          <button class="zoom-btn" onclick="adminFrZoomOut()">−</button>
-          <span class="zoom-label" id="afr-zoom-lbl">100%</span>
-          <button class="zoom-btn" onclick="adminFrZoomIn()">+</button>
+    <div class="admin-panel" id="ap-roster" style="padding:0;overflow:hidden;height:100%">
+      <div style="display:flex;flex-direction:column;height:100%">
+        <div style="display:flex;align-items:center;justify-content:space-between;padding:10px 14px 6px;flex-shrink:0;border-bottom:1px solid var(--border)">
+          <button class="nav-arrow" onclick="adminFrPrev()">‹</button>
+          <span id="afr-title" style="font-size:13px;font-weight:700;color:var(--text)"></span>
+          <button class="nav-arrow" onclick="adminFrNext()">›</button>
         </div>
-        <button class="btn-outline" onclick="adminFrGoToday()" style="padding:5px 12px;font-size:12px">📅 Today</button>
-        <button class="btn-outline" onclick="adminFrGoLegend()" style="padding:5px 12px;font-size:12px">📋 Legend</button>
-        <button class="nav-arrow" onclick="adminFrPrev()">‹</button>
-        <span id="afr-title" style="font-size:13px;font-weight:600"></span>
-        <button class="nav-arrow" onclick="adminFrNext()">›</button>
-      </div>
-      <div style="overflow:auto;position:relative;flex:1">
-        <div id="afr-scale" style="transform-origin:top left;display:inline-block;min-width:100%">
-          <div id="afr-table"></div>
+        <div class="roster-controls" style="padding:8px 14px;flex-shrink:0">
+          <div class="zoom-wrap">
+            <button class="zoom-btn" onclick="adminFrZoomOut()">−</button>
+            <span class="zoom-label" id="afr-zoom-lbl">100%</span>
+            <button class="zoom-btn" onclick="adminFrZoomIn()">+</button>
+          </div>
+          <button class="btn-outline" onclick="adminFrGoToday()" style="padding:5px 12px;font-size:12px">📅 Today</button>
+          <button class="btn-outline" onclick="adminFrGoLegend()" style="padding:5px 12px;font-size:12px">📋 Legend</button>
+        </div>
+        <div style="overflow:auto;flex:1;position:relative">
+          <div id="afr-scale" style="transform-origin:top left;display:inline-block;min-width:100%">
+            <div id="afr-table"></div>
+          </div>
         </div>
       </div>
     </div>
@@ -984,8 +1000,14 @@ function enterApp(){
   document.getElementById('hdr-name').textContent=S.user.name;
   document.getElementById('hdr-role-badge').textContent=RICON[S.user.role]+' '+RLABEL[S.user.role];
   document.getElementById('hdr-role-badge').className='role-badge '+sec;
-  const strip=document.getElementById('section-strip');
-  strip.textContent=SEC_ICON[sec]+' '+SEC_LABEL[sec];strip.className='section-strip '+sec;
+  // Section inline badge in header
+  const secInline=document.getElementById('section-inline');
+  if(secInline){
+    secInline.textContent=SEC_ICON[sec]+' '+(sec==='avia'?'TIA Aviation':'Weather');
+    secInline.style.display='inline-flex';
+    if(sec==='avia'){secInline.style.background='var(--avia-dim)';secInline.style.color='var(--avia)';secInline.style.borderColor='rgba(249,115,22,.3)';}
+    else{secInline.style.background='var(--weather-dim)';secInline.style.color='var(--weather)';secInline.style.borderColor='rgba(56,189,248,.3)';}
+  }
   document.getElementById('today-sec-hdr').textContent='All '+SEC_LABEL[sec]+' staff on duty';
   switchScreen('app');switchTab('today',document.querySelector('.tab'));
   renderToday();renderMyDuties();renderCalendar();renderFullRoster();updateNotifIcon();
@@ -1035,23 +1057,21 @@ function renderToday(){
   document.getElementById('today-date-line').textContent=DAYS[now.getDay()]+', '+iso;
   document.getElementById('today-nepali-line').textContent=' · '+toNepali(iso);
   const shift=getDuty(iso,S.user.name,S.user.role);
-  const banner=document.getElementById('duty-banner');
+  // Update inline duty badge in header
+  const inlineEl=document.getElementById('duty-inline');
+  const inlineShift=document.getElementById('duty-inline-shift');
   if(shift===null){
-    banner.className='duty-banner no-data';banner.querySelector('.db-icon').textContent='📋';
-    document.getElementById('db-title').textContent='No roster data for today';
-    document.getElementById('db-sub').textContent='Ask admin to upload the roster';
+    if(inlineEl)inlineEl.style.display='none';
     document.getElementById('msc-code').textContent='—';document.getElementById('msc-code').style.color='var(--text3)';
-    document.getElementById('msc-name').textContent='No data';
+    document.getElementById('msc-name').textContent='No roster data';
   }else if(isOff(shift)){
-    banner.className='duty-banner day-off';banner.querySelector('.db-icon').textContent='🌿';
-    document.getElementById('db-title').textContent='Day off today';
-    document.getElementById('db-sub').innerHTML='Enjoy your rest!';
+    if(inlineEl){inlineEl.style.display='block';inlineEl.className='duty-inline day-off-inline';}
+    if(inlineShift){inlineShift.style.color='var(--green)';inlineShift.textContent='Day Off';}
     document.getElementById('msc-code').textContent='Off';document.getElementById('msc-code').style.color='var(--green)';
     document.getElementById('msc-name').textContent='Day off';
   }else{
-    banner.className='duty-banner on-duty';banner.querySelector('.db-icon').textContent='📋';
-    document.getElementById('db-title').textContent='You are on duty today!';
-    document.getElementById('db-sub').innerHTML='Shift: <span>'+shift+'</span>';
+    if(inlineEl){inlineEl.style.display='block';inlineEl.className='duty-inline';}
+    if(inlineShift){inlineShift.style.color='var(--accent)';inlineShift.textContent=shift;}
     document.getElementById('msc-code').textContent=shift;document.getElementById('msc-code').style.color='var(--accent)';
     document.getElementById('msc-name').textContent=dutyLabel(shift);
     const t=dutyTime(shift);document.getElementById('msc-time').textContent=t?'🕐 '+t:'';
@@ -1155,9 +1175,10 @@ function renderMyDuties(){
       'BIDA-BHP':'भैपरी आउने बिदा','BIDA-PRB':'पर्व बिदा','BIDA-GHR':'घर बिदा',
       'BIDA-BIR':'बिरामी बिदा','BIDA-PRS':'प्रसूति बिदा','BIDA-PSY':'प्रसूति स्याहार बिदा',
       'BIDA-KIR':'किरिया बिदा','BIDA-ADH':'अध्ययन बिदा','BIDA-ASA':'असाधारण बिदा',
-      'BIDA-SAT':'सट्टा बिदा'
+      'BIDA-SAT':'सट्टा बिदा','SAT':'सट्टा बिदा'
     };
-    const isLeave=(s)=>s==='Day Off'||s==='xx'||s==='XX'||s.startsWith('BIDA-');
+    const LEAVE_CODES_SET=new Set(['Day Off','xx','XX','off','OFF','Off','SAT']);
+    const isLeave=(s)=>!s||LEAVE_CODES_SET.has(s)||String(s).toLowerCase().startsWith('bida-')||String(s).toLowerCase().includes('satta');
     let totalLeave=0;
     let totalDuty=0;
     let gridCells='';
