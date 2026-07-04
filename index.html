@@ -1182,7 +1182,7 @@ function renderMyDuties(){
       'BIDA-KIR':'किरिया बिदा','BIDA-ADH':'अध्ययन बिदा','BIDA-ASA':'असाधारण बिदा',
       'BIDA-SAT':'सट्टा बिदा','SAT':'सट्टा बिदा'
     };
-    const LEAVE_CODES_SET=new Set(['Day Off','xx','XX','off','OFF','Off','SAT','सट्टा बिदा','घर बिदा','बिरामी बिदा','भैपरी आउने बिदा','पर्व बिदा','प्रसूति बिदा','किरिया बिदा','अध्ययन बिदा','असाधारण बिदा']);
+   const LEAVE_CODES_SET=new Set(['Day Off','xx','XX','off','OFF','Off','SAT','सट्टा बिदा','घर बिदा','बिरामी बिदा','भैपरी आउने बिदा','पर्व बिदा','प्रसूति बिदा','किरिया बिदा','अध्ययन बिदा','असाधारण बिदा']);
     const isLeave=(s)=>!s||LEAVE_CODES_SET.has(s)||LEAVE_CODES_SET.has(String(s).trim())||String(s).toLowerCase().startsWith('bida-')||String(s).toLowerCase().includes('satta')||String(s).toLowerCase().includes('bida')||String(s).includes('बिदा');
     let totalLeave=0;
     let totalDuty=0;
