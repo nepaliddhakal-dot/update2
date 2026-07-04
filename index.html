@@ -2048,13 +2048,21 @@ async function unregToken(){if(!S.scriptUrl||!S.user)return;try{await fetch(S.sc
 
 // ── THEME ──
 function applyTheme(theme){
-  document.documentElement.setAttribute('data-theme',theme);
+  if(theme==='light'){
+    document.documentElement.setAttribute('data-theme','light');
+  } else {
+    document.documentElement.removeAttribute('data-theme');
+  }
   const icon=theme==='light'?'☀️':'🌙';
   const btn=document.getElementById('theme-toggle-btn');
   if(btn)btn.textContent=icon;
   const abtn=document.getElementById('admin-theme-btn');
   if(abtn)abtn.textContent=icon;
   localStorage.setItem('mfd_theme',theme);
+}
+function toggleTheme(){
+  const cur=localStorage.getItem('mfd_theme')||'dark';
+  applyTheme(cur==='dark'?'light':'dark');
 }
 // ── UI HELPERS ──
 function togglePwVis(id,btn){const inp=document.getElementById(id);if(inp.type==='password'){inp.type='text';btn.textContent='🙈';}else{inp.type='password';btn.textContent='👁';}}
