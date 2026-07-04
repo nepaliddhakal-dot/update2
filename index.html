@@ -495,6 +495,7 @@ textarea.fi{resize:vertical;min-height:80px}
     <button class="at-btn" onclick="switchAdminTab('admins',this)">👑 Admins</button>
     <button class="at-btn" onclick="switchAdminTab('requests',this)">📨 Requests</button>
     <button class="at-btn" onclick="switchAdminTab('roster',this)">📊 Full Roster</button>
+    <button class="at-btn" onclick="switchAdminTab('notify',this)">📢 Notify</button>>
   </div>
   <div class="admin-body">
     <div class="admin-panel active" id="ap-upload">
@@ -583,6 +584,54 @@ textarea.fi{resize:vertical;min-height:80px}
       </div>
       <div class="a-info">Staff ले पठाएका duty change अनुरोधहरू। Approve गर्दा roster automatically update हुन्छ।</div>
       <div id="requests-list"><div style="color:var(--text3);font-size:13px">Tab खोल्दा load हुन्छ।</div></div>
+    </div>
+    <div class="admin-panel" id="ap-notify">
+      <div class="a-card-title" style="margin-bottom:8px">📢 Send Announcement</div>
+      <div class="a-info">Staff को FCM notification पठाउनुहोस् — sound सहित।</div>
+
+      <!-- Title & Message -->
+      <div class="fg" style="margin-top:10px">
+        <label class="fl">Notification Title</label>
+        <input class="fi" id="notif-title" placeholder="📢 Important Notice" value="📢 MFD — Important Notice"/>
+      </div>
+      <div class="fg">
+        <label class="fl">Message</label>
+        <textarea class="fi" id="notif-msg" rows="3" placeholder="यहाँ सन्देश लेख्नुहोस्..." style="resize:none"></textarea>
+      </div>
+
+      <!-- Target selector -->
+      <div class="fg">
+        <label class="fl">पठाउने: Target</label>
+        <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:4px">
+          <button class="btn-outline" id="notif-target-all" onclick="setNotifTarget('all')" style="font-size:12px;padding:6px 12px">🌐 All Staff</button>
+          <button class="btn-outline" id="notif-target-avia" onclick="setNotifTarget('avia')" style="font-size:12px;padding:6px 12px">✈️ Aviation</button>
+          <button class="btn-outline" id="notif-target-weather" onclick="setNotifTarget('weather')" style="font-size:12px;padding:6px 12px">🌤️ Weather</button>
+          <button class="btn-outline" id="notif-target-sdm" onclick="setNotifTarget('sdm')" style="font-size:12px;padding:6px 12px">⭐ SDM</button>
+          <button class="btn-outline" id="notif-target-forecaster" onclick="setNotifTarget('forecaster')" style="font-size:12px;padding:6px 12px">🌤️ Forecaster</button>
+          <button class="btn-outline" id="notif-target-observer" onclick="setNotifTarget('observer')" style="font-size:12px;padding:6px 12px">🔭 Observer</button>
+          <button class="btn-outline" id="notif-target-custom" onclick="setNotifTarget('custom')" style="font-size:12px;padding:6px 12px">👤 Custom</button>
+        </div>
+      </div>
+
+      <!-- Custom staff selector -->
+      <div id="notif-custom-wrap" style="display:none;margin-top:8px">
+        <label class="fl">Staff छान्नुहोस्</label>
+        <div id="notif-staff-list" style="display:flex;flex-wrap:wrap;gap:6px;margin-top:6px"></div>
+      </div>
+
+      <!-- Selected targets preview -->
+      <div id="notif-target-preview" style="font-size:11px;color:var(--text3);margin-top:8px"></div>
+
+      <!-- Send button -->
+      <button class="btn-green" id="notif-send-btn" onclick="sendAnnouncement()" style="margin-top:12px;width:100%;padding:12px;font-size:14px;font-weight:700">
+        📢 Send Notification
+      </button>
+
+      <!-- History -->
+      <div style="margin-top:18px;border-top:1px solid var(--border);padding-top:12px">
+        <div style="font-size:12px;font-weight:600;color:var(--text2);margin-bottom:8px">📋 Recent Announcements</div>
+        <div id="notif-history"></div>
+      </div>
     </div>
     <div class="admin-panel" id="ap-roster" style="padding:0;overflow:hidden;height:100%">
       <div style="display:flex;flex-direction:column;height:100%">
@@ -885,6 +934,17 @@ async function syncData(silent=false){
       if(srv.avia||srv.weather){S.staff=srv;}else{S.staff={avia:{observer:srv.observer||[],forecaster:srv.forecaster||[],sdm:srv.sdm||[]},weather:{observer:[],forecaster:[],sdm:[]}};}
       localStorage.setItem('mfd_staff',JSON.stringify(S.staff));
     }
+    // Build flat staff list for notifications
+    S.staffFlat=[];
+    const _seen=new Set();
+    for(const sec of['avia','weather']){
+      for(const role of['sdm','forecaster','observer']){
+        for(const name of(S.staff[sec]?.[role]||[])){
+          const key=name+'|'+role;
+          if(!_seen.has(key)){_seen.add(key);S.staffFlat.push({name,role,section:sec});}
+        }
+      }
+    }
     showToast('✅ Sync complete!',100);setTimeout(hideToast,1500);
     if(S.user){renderToday();renderMyDuties();renderCalendar();renderFullRoster();}
     populateNameDrop();renderAdminStaff();renderMonthsList();
@@ -1048,7 +1108,7 @@ function switchAdminTab(tab,el){
   document.querySelectorAll('.admin-panel').forEach(p=>p.classList.remove('active'));
   el.classList.add('active');document.getElementById('ap-'+tab).classList.add('active');
   if(tab==='staff'){renderAdminStaff();checkUnassigned();}
- if(tab==='months')renderMonthsList();if(tab==='admins')renderAdminsTab();if(tab==='edit')loadEditMonths();if(tab==='requests')loadSwapRequests();if(tab==='roster'){const c=getCurrentBsMonth();afrBsYear=c.bsY;afrBsMonth=c.bsM;renderAdminFullRoster();}
+ if(tab==='months')renderMonthsList();if(tab==='admins')renderAdminsTab();if(tab==='edit')loadEditMonths();if(tab==='requests')loadSwapRequests();if(tab==='roster'){const c=getCurrentBsMonth();afrBsYear=c.bsY;afrBsMonth=c.bsM;renderAdminFullRoster();}if(tab==='notify'){setNotifTarget('all');loadNotifHistory();}
 }
 
 // ── TODAY TAB ──
@@ -2110,7 +2170,116 @@ async function loadMyRequests(){
     el.innerHTML='<div style="color:var(--text3);font-size:12px">Load गर्न सकिएन।</div>';
   }
 }
-// ── SWAP REQUESTS (ADMIN) ──
+// ── ADMIN NOTIFICATION ──
+let notifTarget='all';
+let notifCustomSelected=new Set();
+
+function setNotifTarget(t){
+  notifTarget=t;
+  // Update button styles
+  ['all','avia','weather','sdm','forecaster','observer','custom'].forEach(x=>{
+    const btn=document.getElementById('notif-target-'+x);
+    if(btn)btn.style.background=x===t?'var(--accent)':'';
+    if(btn)btn.style.color=x===t?'#000':'';
+  });
+  // Show/hide custom staff list
+  const wrap=document.getElementById('notif-custom-wrap');
+  if(wrap)wrap.style.display=t==='custom'?'block':'none';
+  if(t==='custom')renderNotifStaffList();
+  updateNotifPreview();
+}
+
+function renderNotifStaffList(){
+  const el=document.getElementById('notif-staff-list');
+  if(!el||!S.staffFlat)return;
+  el.innerHTML=S.staffFlat.map(st=>{
+    const sel=notifCustomSelected.has(st.name+'|'+st.role);
+    return`<div onclick="toggleNotifStaff('${st.name}','${st.role}')" style="cursor:pointer;padding:5px 10px;border-radius:8px;font-size:12px;border:1px solid ${sel?'var(--accent)':'var(--border)'};background:${sel?'var(--accent-dim)':'var(--bg3)'};color:${sel?'var(--accent)':'var(--text2)'}">
+      ${st.name}<br/><span style="font-size:9px;color:var(--text3)">${RICON[st.role]} ${RLABEL[st.role]}</span>
+    </div>`;
+  }).join('');
+}
+
+function toggleNotifStaff(name,role){
+  const key=name+'|'+role;
+  if(notifCustomSelected.has(key))notifCustomSelected.delete(key);
+  else notifCustomSelected.add(key);
+  renderNotifStaffList();
+  updateNotifPreview();
+}
+
+function updateNotifPreview(){
+  const el=document.getElementById('notif-target-preview');
+  if(!el)return;
+  const targets=getNotifTargets();
+  if(!targets.length){el.textContent='⚠️ कोही select भएन';el.style.color='var(--red)';return;}
+  el.textContent='✅ '+targets.length+' staff लाई notification जानेछ';
+  el.style.color='var(--green)';
+}
+
+function getNotifTargets(){
+  if(!S.staffFlat)return[];
+  if(notifTarget==='all')return S.staffFlat;
+  if(notifTarget==='avia')return S.staffFlat.filter(s=>s.section==='avia');
+  if(notifTarget==='weather')return S.staffFlat.filter(s=>s.section==='weather');
+  if(notifTarget==='sdm')return S.staffFlat.filter(s=>s.role==='sdm');
+  if(notifTarget==='forecaster')return S.staffFlat.filter(s=>s.role==='forecaster');
+  if(notifTarget==='observer')return S.staffFlat.filter(s=>s.role==='observer');
+  if(notifTarget==='custom')return S.staffFlat.filter(s=>notifCustomSelected.has(s.name+'|'+s.role));
+  return[];
+}
+
+async function sendAnnouncement(){
+  const title=document.getElementById('notif-title').value.trim();
+  const msg=document.getElementById('notif-msg').value.trim();
+  if(!title||!msg){alert('Title र Message भर्नुहोस्');return;}
+  const targets=getNotifTargets();
+  if(!targets.length){alert('कम्तिमा एक जना staff छान्नुहोस्');return;}
+  if(!confirm('📢 '+targets.length+' जना staff लाई notification पठाउने?\n\n'+title+'\n'+msg))return;
+  const btn=document.getElementById('notif-send-btn');
+  btn.textContent='⏳ Sending...';btn.disabled=true;
+  try{
+    const res=await fetch(S.scriptUrl,{
+      method:'POST',
+      body:JSON.stringify({
+        action:'sendAnnouncement',
+        title,message:msg,
+        targets:targets.map(s=>({name:s.name,role:s.role})),
+        sentBy:S.currentAdmin?.name||'Admin'
+      })
+    });
+    const d=await res.json();
+    alert('✅ Sent: '+d.sent+' | Failed: '+d.failed);
+    document.getElementById('notif-msg').value='';
+    loadNotifHistory();
+  }catch(e){
+    alert('❌ Failed. Check connection.');
+  }finally{
+    btn.textContent='📢 Send Notification';btn.disabled=false;
+  }
+}
+
+async function loadNotifHistory(){
+  const el=document.getElementById('notif-history');
+  if(!el)return;
+  el.innerHTML='<div style="font-size:11px;color:var(--text3)">⏳ Loading...</div>';
+  try{
+    const res=await fetch(S.scriptUrl+'?action=getAnnouncements');
+    const d=await res.json();
+    const rows=(d.data||[]).slice(-10).reverse();
+    if(!rows.length){el.innerHTML='<div style="font-size:11px;color:var(--text3)">No announcements yet.</div>';return;}
+    el.innerHTML=rows.map(r=>`<div style="background:var(--bg3);border-radius:8px;padding:8px 10px;margin-bottom:6px">
+      <div style="font-size:12px;font-weight:600">${r.title}</div>
+      <div style="font-size:11px;color:var(--text2);margin-top:2px">${r.message}</div>
+      <div style="font-size:10px;color:var(--text3);margin-top:4px">
+        ${new Date(r.timestamp).toLocaleString()} · Sent: ${r.sent} | Failed: ${r.failed}
+      </div>
+    </div>`).join('');
+  }catch(e){
+    el.innerHTML='<div style="font-size:11px;color:var(--red)">Load failed.</div>';
+  }
+}
+  // ── SWAP REQUESTS (ADMIN) ──
 async function loadSwapRequests(){
   const el=document.getElementById('requests-list');
   el.innerHTML='<div style="color:var(--text3);font-size:13px">⏳ Loading...</div>';
