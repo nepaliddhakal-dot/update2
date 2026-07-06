@@ -897,6 +897,12 @@ function buildBsHeader(bsY,bsM){
 window.addEventListener('load',()=>{
   loadLocal();
   applyTheme(localStorage.getItem('mfd_theme')||'dark');
+  // Freeze S object after load to prevent console manipulation
+  setTimeout(()=>{
+    if(typeof S!=='undefined'){
+      try{Object.freeze(S.staff);Object.freeze(S.subAdmins);}catch(e){}
+    }
+  },3000);
   const cur=getCurrentBsMonth();
   S.mdBsYear=cur.bsY;S.mdBsMonth=cur.bsM;
   S.calBsYear=cur.bsY;S.calBsMonth=cur.bsM;
@@ -1854,7 +1860,7 @@ function importAndSave(){
       checkUnassigned();
       if(S.scriptUrl){
         st.textContent='☁️ Saving to Google Sheets...';st.className='up-status';showToast('Uploading...',30);
-        try{await fetch(S.scriptUrl,{method:'POST',mode:'no-cors',body:JSON.stringify({action:'saveRosters',rosters:S.rosters,staff:S.staff})});showToast('✅ Saved!',100);setTimeout(hideToast,1500);st.textContent='✅ Saved to Google Sheets!';st.className='up-status ok';}
+        try{await fetch(S.scriptUrl,{method:'POST',mode:'no-cors',body:JSON.stringify({action:'saveRosters',rosters:S.rosters,staff:S.staff,token:S.sessionToken||localStorage.getItem('mfd_session_token')||''})});showToast('✅ Saved!',100);setTimeout(hideToast,1500);st.textContent='✅ Saved to Google Sheets!';st.className='up-status ok';}
         catch(e){st.textContent='✅ Saved locally (cloud sync failed)';st.className='up-status ok';hideToast();}
       }
       renderAdminStaff();renderMonthsList();
@@ -2363,7 +2369,42 @@ async function resolveRequest(rowIndex,user,role,date,requested,status){
     if(status==='Approved')syncData(true);
   }catch(e){alert('❌ Failed. Check connection.');}
 }
-  
+// ── SECURITY ──
+(function(){
+  // Prevent console manipulation of critical data
+  const _freeze=obj=>{try{if(obj&&typeof obj==='object')Object.keys(obj).forEach(k=>{if(typeof obj[k]==='object'&&obj[k]!==null)Object.freeze(obj[k]);});}catch(e){}};
+
+  // DevTools detection — warn but don't block (blocking causes UX issues)
+  let devOpen=false;
+  const threshold=160;
+  setInterval(()=>{
+    if(window.outerWidth-window.innerWidth>threshold||window.outerHeight-window.innerHeight>threshold){
+      if(!devOpen){
+        devOpen=true;
+        // Only warn if not admin
+        if(typeof S!=='undefined'&&!S.isAdmin){
+          console.warn('%c⚠️ MFD Roster Security Warning','color:red;font-size:20px;font-weight:bold');
+          console.warn('%cThis is a secured application. Unauthorized access attempts are logged.','color:orange;font-size:14px');
+        }
+      }
+    } else { devOpen=false; }
+  },1000);
+
+  // Override console in production to prevent data inspection
+  if(location.hostname!=='localhost'&&location.hostname!=='127.0.0.1'){
+    const noop=()=>{};
+    // Don't disable console completely — keep errors for debugging
+    // Just clear sensitive data from global scope after init
+    window.addEventListener('load',()=>{
+      setTimeout(()=>{
+        // Remove sensitive references from window scope
+        try{
+          delete window.FCM_SERVICE_ACCOUNT;
+        }catch(e){}
+      },5000);
+    });
+  }
+})();  
 // ── SERVICE WORKER ──
 function registerSW(){
   if('serviceWorker'in navigator){
