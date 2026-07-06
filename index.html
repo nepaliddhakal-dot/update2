@@ -1964,10 +1964,36 @@ async function saveStaff(){
 // ── ADMIN MONTHS ──
 function renderMonthsList(){
   const el=document.getElementById('months-list');if(!el)return;
-  const items=[];
-  for(const[role,rd]of Object.entries(S.rosters)){const months=(rd.months||(Array.isArray(rd)?rd:[]));months.forEach(m=>items.push({role,name:m.name,nepali:m.nepali||'',days:m.days?.length||0}));}
+  // Group by month (bsYear+bsMonth) across all roles
+  const monthMap={};
+  for(const[role,rd]of Object.entries(S.rosters)){
+    const months=(rd.months||(Array.isArray(rd)?rd:[]));
+    months.forEach(m=>{
+      const key=(m.bsYear||0)+'_'+(m.bsMonth||0);
+      if(!monthMap[key])monthMap[key]={name:m.name||m.nepali||'',nepali:m.nepali||m.name||'',bsYear:m.bsYear||0,bsMonth:m.bsMonth||0,days:m.days?.length||0,roles:{}};
+      monthMap[key].roles[role]=m.days?.length||0;
+      if((m.days?.length||0)>monthMap[key].days)monthMap[key].days=m.days?.length||0;
+    });
+  }
+  const items=Object.values(monthMap).sort((a,b)=>(b.bsYear-a.bsYear)||((b.bsMonth||0)-(a.bsMonth||0)));
   if(!items.length){el.innerHTML='<div style="color:var(--text3);font-size:13px">No months uploaded yet.</div>';return;}
-  el.innerHTML=items.map(it=>`<div class="month-item"><div class="mi-info"><div class="mi-title">${it.name} <span class="mi-badge ${it.role}">${RLABEL[it.role]}</span></div><div class="mi-sub">${it.nepali?it.nepali+' · ':''}${it.days} days</div></div><button class="btn-red" onclick="deleteMonth('${it.role}','${it.name}')">Delete</button></div>`).join('');
+  el.innerHTML=items.map(it=>{
+    const roleBadges=Object.keys(it.roles).map(rk=>{
+      const rColor=rk==='sdm'?'var(--purple)':rk==='forecaster'?'var(--teal)':'var(--green)';
+      return`<span style="font-size:10px;font-weight:600;padding:2px 8px;border-radius:100px;background:${rColor}22;color:${rColor};margin-right:4px">${RLABEL[rk]||rk} (${it.roles[rk]}d)</span>`;
+    }).join('');
+    const deleteButtons=Object.keys(it.roles).map(rk=>
+      `<button class="btn-red" onclick="deleteMonth('${rk}','${it.name}')" style="padding:4px 10px;font-size:11px;margin-bottom:3px">${RLABEL[rk]||rk}</button>`
+    ).join('');
+    return`<div class="month-item" style="align-items:flex-start">
+      <div class="mi-info">
+        <div class="mi-title" style="margin-bottom:4px">${it.name}</div>
+        <div style="margin-bottom:4px">${roleBadges}</div>
+        <div class="mi-sub">${it.nepali?it.nepali+' · ':''}${it.days} days</div>
+      </div>
+      <div style="display:flex;flex-direction:column;align-items:flex-end;gap:3px">${deleteButtons}</div>
+    </div>`;
+  }).join('');
 }
 async function deleteMonth(role,name){
   if(!confirm('Delete "'+name+'"?'))return;if(!S.rosters[role])return;
