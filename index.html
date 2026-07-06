@@ -1969,7 +1969,7 @@ function renderMonthsList(){
   for(const[role,rd]of Object.entries(S.rosters)){
     const months=(rd.months||(Array.isArray(rd)?rd:[]));
     months.forEach(m=>{
-      const key=(m.bsYear||0)+'_'+(m.bsMonth||0);
+      const key=m.name||m.nepali||'unknown';
       if(!monthMap[key])monthMap[key]={name:m.name||m.nepali||'',nepali:m.nepali||m.name||'',bsYear:m.bsYear||0,bsMonth:m.bsMonth||0,days:m.days?.length||0,roles:{}};
       monthMap[key].roles[role]=m.days?.length||0;
       if((m.days?.length||0)>monthMap[key].days)monthMap[key].days=m.days?.length||0;
