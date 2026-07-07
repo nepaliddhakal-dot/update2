@@ -399,6 +399,7 @@ textarea.fi{resize:vertical;min-height:80px}
       <button onclick="openSwapModal()" style="margin:0 12px 10px;background:rgba(56,189,248,.1);border:1px solid rgba(56,189,248,.25);color:var(--accent);font-size:13px;font-weight:600;padding:10px;border-radius:var(--radius);width:calc(100% - 24px)">📨 Request Duty Change / ड्युटि परिवर्तन अनुरोध</button>
       <div class="section-hdr" id="today-sec-hdr">All staff on duty</div>
       <div id="all-duty-list"></div>
+      <div id="dashboard-chart" style="margin:10px 12px 0;background:var(--card2);border:1px solid var(--border2);border-radius:var(--radius);padding:12px"></div>
       <div id="day-off-section" class="day-off-section" style="display:none">
         <div class="dos-label">Day off</div>
         <div class="dos-chips" id="day-off-chips"></div>
@@ -1212,6 +1213,7 @@ function renderToday(){
   }
   if(offDuty.length){document.getElementById('day-off-section').style.display='block';document.getElementById('day-off-chips').innerHTML=offDuty.map(d=>`<span class="dos-chip">${d.name}</span>`).join('');}
   else document.getElementById('day-off-section').style.display='none';
+  setTimeout(renderDashboardChart,300);
 }
 
 // ── MY DUTIES — clean rows only, tap to see details ──
@@ -1946,7 +1948,7 @@ function importAndSave(){
       checkUnassigned();
       if(S.scriptUrl){
         st.textContent='☁️ Saving to Google Sheets...';st.className='up-status';showToast('Uploading...',30);
-        try{await fetch(S.scriptUrl,{method:'POST',mode:'no-cors',body:JSON.stringify({action:'saveRosters',rosters:S.rosters,staff:S.staff,token:S.sessionToken||localStorage.getItem('mfd_session_token')||''})});showToast('✅ Saved!',100);setTimeout(hideToast,1500);st.textContent='✅ Saved to Google Sheets!';st.className='up-status ok';}
+        try{await fetch(S.scriptUrl,{method:'POST',mode:'no-cors',body:JSON.stringify({action:'saveRosters',rosters:S.rosters,staff:S.staff,token:S.sessionToken||localStorage.getItem('mfd_session_token')||''})});logAudit('Upload Roster',`${RLABEL[role]||role} — ${monthEn||''}`);showToast('✅ Saved!',100);setTimeout(hideToast,1500);st.textContent='✅ Saved to Google Sheets!';st.className='up-status ok';}
         catch(e){st.textContent='✅ Saved locally (cloud sync failed)';st.className='up-status ok';hideToast();}
       }
       renderAdminStaff();renderMonthsList();
