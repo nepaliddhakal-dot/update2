@@ -178,6 +178,14 @@ input,select,textarea{font-family:'Inter',sans-serif}
 .cc-sh{font-size:7px;font-weight:700;white-space:nowrap;line-height:1.5;flex-shrink:0}
 .cc-more{font-size:7px;color:var(--text3);padding:1px 2px;grid-column:span 2}
 .cn-obs{color:#34d399}.cn-fore{color:#38bdf8}.cn-sdm{color:#a78bfa}
+.fr-sec-tabs{display:flex;gap:6px;padding:8px 12px;border-bottom:1px solid var(--border);flex-shrink:0;overflow-x:auto;scrollbar-width:none}
+.fr-sec-tabs::-webkit-scrollbar{display:none}
+.fr-sec-tab{display:flex;align-items:center;gap:5px;padding:7px 12px;border-radius:100px;font-size:11px;font-weight:600;color:var(--text2);background:var(--card2);border:1px solid var(--border);white-space:nowrap;cursor:pointer;transition:all .2s;flex-shrink:0}
+.fr-sec-tab .ti{font-size:13px}
+.fr-sec-tab:active{transform:scale(.96)}
+.fr-sec-tab.active[data-sec="all"]{background:var(--accent-dim);border-color:var(--accent);color:var(--accent)}
+.fr-sec-tab.active[data-sec="avia"]{background:var(--avia-dim);border-color:var(--avia);color:var(--avia)}
+.fr-sec-tab.active[data-sec="weather"]{background:var(--weather-dim);border-color:var(--weather);color:var(--weather)}
 .roster-nav{display:flex;align-items:center;padding:8px 12px;border-bottom:1px solid var(--border);flex-shrink:0}
 .roster-nav-title{font-size:13px;font-weight:600;flex:1;text-align:center}
 .roster-controls{display:flex;align-items:center;gap:8px;padding:8px 12px;border-bottom:1px solid var(--border);flex-shrink:0;flex-wrap:wrap}
@@ -456,6 +464,11 @@ textarea.fi{resize:vertical;min-height:80px}
     </div>
     <!-- FULL ROSTER — all roles + both sections, deduplicated, SDM→Fore→Obs -->
     <div class="tab-panel" id="tab-fullroster">
+      <div class="fr-sec-tabs">
+        <div class="fr-sec-tab active" data-sec="all" onclick="frSetSection('all',this)"><span class="ti">👥</span>Full Staff</div>
+        <div class="fr-sec-tab" data-sec="avia" onclick="frSetSection('avia',this)"><span class="ti">✈️</span>TIA Aviation Met</div>
+        <div class="fr-sec-tab" data-sec="weather" onclick="frSetSection('weather',this)"><span class="ti">🌦️</span>Weather Forecasting</div>
+      </div>
       <div class="roster-nav">
         <button class="nav-arrow" onclick="frPrev()">‹</button>
         <div class="roster-nav-title" id="fr-title">--</div>
@@ -798,7 +811,7 @@ const S={
   staff:{avia:{observer:[],forecaster:[],sdm:[]},weather:{observer:[],forecaster:[],sdm:[]}},
   scriptUrl:'',adminCreds:{username:'',pin:''},subAdmins:[],currentAdmin:null,
   calBsYear:2083,calBsMonth:2,mdBsYear:2083,mdBsMonth:2,
-  frBsYear:2083,frBsMonth:2,frZoom:1,
+  frBsYear:2083,frBsMonth:2,frZoom:1,frSection:'all',
   fcmToken:null,manualDays:[],staffSecTab:'avia',
   assignPendingName:'',assignPendingRole:''
 };
@@ -1484,24 +1497,34 @@ function renderAdminFullRoster(){
   </div>`;
   setTimeout(()=>{const el=document.querySelector('#afr-table .today-row');if(el)el.scrollIntoView({block:'center',behavior:'smooth'});},150);
 }
+function frSetSection(sec,el){
+  S.frSection=sec;
+  document.querySelectorAll('.fr-sec-tab').forEach(t=>t.classList.remove('active'));
+  if(el)el.classList.add('active');
+  renderFullRoster();
+}
 function renderFullRoster(){
   if(!document.getElementById('tab-fullroster').classList.contains('active'))return;
   const bsY=S.frBsYear,bsM=S.frBsMonth;
   const{np,en}=buildBsHeader(bsY,bsM);
-  document.getElementById('fr-title').textContent=np+'  ('+en+')';
+  const secSuffix=S.frSection==='avia'?' — ✈️ TIA Aviation Met':S.frSection==='weather'?' — 🌦️ Weather Forecasting':' — 👥 Full Staff';
+  document.getElementById('fr-title').textContent=np+'  ('+en+')'+secSuffix;
   applyZoom();
   const bsDays=bsMonthDays(bsY,bsM);const today=todayISO();
 
-  // Build deduplicated unified staff: SDM → Forecaster → Observer, avia then weather, skip duplicates
+  // Which sections to pull staff from, based on the selected filter tab
+  const secList=S.frSection==='all'?['avia','weather']:[S.frSection];
+
+  // Build deduplicated staff per role, respecting the section filter
   const seen=new Set();
   const sdmList=[],foreList=[],obsList=[];
-  for(const sec of['avia','weather']){
+  for(const sec of secList){
     for(const n of(S.staff[sec]?.sdm||[])){if(!seen.has(n)){seen.add(n);sdmList.push(n);}}
   }
-  for(const sec of['avia','weather']){
+  for(const sec of secList){
     for(const n of(S.staff[sec]?.forecaster||[])){if(!seen.has(n)){seen.add(n);foreList.push(n);}}
   }
-  for(const sec of['avia','weather']){
+  for(const sec of secList){
     for(const n of(S.staff[sec]?.observer||[])){if(!seen.has(n)){seen.add(n);obsList.push(n);}}
   }
   const allStaff=[
@@ -1511,7 +1534,7 @@ function renderFullRoster(){
   ];
 
   if(!allStaff.length){
-    document.getElementById('fr-table').innerHTML='<div style="padding:20px;color:var(--text3);font-size:13px">No staff found. Go to Admin → Staff to add staff.</div>';
+    document.getElementById('fr-table').innerHTML='<div style="padding:20px;color:var(--text3);font-size:13px">No staff found for this section. Go to Admin → Staff to add staff.</div>';
     return;
   }
 
