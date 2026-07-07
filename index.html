@@ -495,7 +495,9 @@ textarea.fi{resize:vertical;min-height:80px}
     <button class="at-btn" onclick="switchAdminTab('admins',this)">👑 Admins</button>
     <button class="at-btn" onclick="switchAdminTab('requests',this)">📨 Requests</button>
     <button class="at-btn" onclick="switchAdminTab('roster',this)">📊 Full Roster</button>
-    <button class="at-btn" onclick="switchAdminTab('notify',this)">📢 Notify</button>>
+    <button class="at-btn" onclick="switchAdminTab('notify',this)">📢 Notify</button>
+    <button class="at-btn" onclick="switchAdminTab('report',this)">📄 Report</button>
+    <button class="at-btn" onclick="switchAdminTab('audit',this)">🔍 Audit</button>
   </div>
   <div class="admin-body">
     <div class="admin-panel active" id="ap-upload">
@@ -584,6 +586,46 @@ textarea.fi{resize:vertical;min-height:80px}
       </div>
       <div class="a-info">Staff ले पठाएका duty change अनुरोधहरू। Approve गर्दा roster automatically update हुन्छ।</div>
       <div id="requests-list"><div style="color:var(--text3);font-size:13px">Tab खोल्दा load हुन्छ।</div></div>
+    </div>
+    <div class="admin-panel" id="ap-report">
+      <div class="a-card-title" style="margin-bottom:12px">📄 Monthly Report</div>
+      <div class="a-info">Section र Month छानेर PDF report download गर्नुस्।</div>
+      <div style="display:flex;gap:10px;flex-wrap:wrap;margin-top:12px">
+        <div class="fg" style="flex:1;min-width:150px">
+          <label class="fl">Section</label>
+          <select class="fi" id="rpt-section">
+            <option value="all">All Sections</option>
+            <option value="avia">TIA Aviation</option>
+            <option value="weather">Weather Forecasting</option>
+          </select>
+        </div>
+        <div class="fg" style="flex:1;min-width:150px">
+          <label class="fl">Role</label>
+          <select class="fi" id="rpt-role">
+            <option value="all">All Roles</option>
+            <option value="observer">Observer</option>
+            <option value="forecaster">Forecaster</option>
+            <option value="sdm">Sr. Div. Met.</option>
+          </select>
+        </div>
+        <div class="fg" style="flex:1;min-width:150px">
+          <label class="fl">Month</label>
+          <select class="fi" id="rpt-month"></select>
+        </div>
+      </div>
+      <button onclick="generateAdminPDF()" style="margin-top:12px;width:100%;padding:12px;background:var(--accent);color:#000;font-size:13px;font-weight:700;border:none;border-radius:var(--radius);cursor:pointer">
+        📄 Generate & Download PDF
+      </button>
+      <div id="rpt-preview" style="margin-top:16px"></div>
+    </div>
+
+    <div class="admin-panel" id="ap-audit">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px">
+        <div class="a-card-title">🔍 Audit Log</div>
+        <button onclick="loadAuditLog()" class="btn-outline" style="padding:5px 12px;font-size:12px">🔄 Refresh</button>
+      </div>
+      <div class="a-info">कसले के change गर्यो — सबै record यहाँ छ।</div>
+      <div id="audit-list" style="margin-top:10px"><div style="color:var(--text3);font-size:13px">Tab खोल्दा load हुन्छ।</div></div>
     </div>
     <div class="admin-panel" id="ap-notify">
       <div class="a-card-title" style="margin-bottom:8px">📢 Send Announcement</div>
@@ -1115,6 +1157,8 @@ function switchAdminTab(tab,el){
   el.classList.add('active');document.getElementById('ap-'+tab).classList.add('active');
   if(tab==='staff'){renderAdminStaff();checkUnassigned();}
  if(tab==='months')renderMonthsList();if(tab==='admins')renderAdminsTab();if(tab==='edit')loadEditMonths();if(tab==='requests')loadSwapRequests();if(tab==='roster'){const c=getCurrentBsMonth();afrBsYear=c.bsY;afrBsMonth=c.bsM;renderAdminFullRoster();}if(tab==='notify'){setNotifTarget('all');loadNotifHistory();}
+if(tab==='report'){loadReportMonths();}
+if(tab==='audit'){loadAuditLog();}
 }
 
 // ── TODAY TAB ──
@@ -1268,7 +1312,12 @@ function renderMyDuties(){
         <div class="summary-item"><div class="si-shift-label">कुल बिदा दिन</div><div class="si-count offc">${totalLeave}<span style="font-size:12px;font-weight:400"> दिन</span></div></div>
       </div></div>`;
   }else{sumHtml='<div style="padding:20px;text-align:center;color:var(--text3);font-size:13px">No roster data for this month.</div>';}
-  document.getElementById('md-list').innerHTML=html+sumHtml;
+  document.getElementById('md-list').innerHTML=html+sumHtml+`
+    <div style="padding:0 12px 24px">
+      <button onclick="generateMyDutyPDF(${bsY},${bsM})" style="width:100%;padding:12px;background:var(--accent);color:#000;font-size:13px;font-weight:700;border:none;border-radius:var(--radius);cursor:pointer;display:flex;align-items:center;justify-content:center;gap:8px">
+        📄 Download Monthly Report PDF
+      </button>
+    </div>`;
 }
 
 // ── CALENDAR ──
@@ -2042,7 +2091,8 @@ function renderMonthsList(){
 }
 async function deleteMonth(role,name){
   const rIcon=role==='sdm'?'⭐':role==='forecaster'?'🌤️':'🔭';
-  if(!confirm(rIcon+' '+( RLABEL[role]||role)+' — "'+name+'" delete गर्ने?'))return;if(!S.rosters[role])return;
+  if(!confirm(rIcon+' '+(RLABEL[role]||role)+' — "'+name+'" delete गर्ने?'))return;
+  logAudit('Delete Month', `${RLABEL[role]||role} — ${name}`);if(!S.rosters[role])return;
   S.rosters[role].months=(S.rosters[role].months||[]).filter(m=>m.name!==name);
   localStorage.setItem('mfd_rosters',JSON.stringify(S.rosters));
   if(S.scriptUrl){showToast('Removing...',40);try{await fetch(S.scriptUrl,{method:'POST',mode:'no-cors',body:JSON.stringify({action:'saveRosters',rosters:S.rosters,staff:S.staff})});showToast('✅ Deleted!',100);setTimeout(hideToast,1500);}catch(e){hideToast();}}
@@ -2441,7 +2491,229 @@ async function resolveRequest(rowIndex,user,role,date,requested,status){
       },5000);
     });
   }
-})();  
+})(); 
+// ── PDF REPORT ────────────────────────────────────────────────────
+function generateMyDutyPDF(bsY,bsM){
+  if(!S.user){alert('Login required');return;}
+  const name=S.user.name,role=S.user.role;
+  const rd=S.rosters[role];
+  const months=rd?.months||(Array.isArray(rd)?rd:[]);
+  const month=months.find(m=>m.bsYear===bsY&&m.bsMonth===bsM);
+  if(!month){alert('No data for this month');return;}
+  const days=month.days||[];
+  // Build summary
+  const sumMap={};
+  days.forEach(day=>{
+    const shift=day.duties?.[name]||'';
+    const key=!shift||shift==='xx'||shift==='XX'?'Day Off':shift;
+    sumMap[key]=(sumMap[key]||0)+1;
+  });
+  const LEAVE_SET=new Set(['Day Off','xx','XX','SAT','BIDA-SAT','BIDA-GHR','BIDA-BIR','BIDA-PRB','BIDA-BHP']);
+  let totalDuty=0,totalLeave=0;
+  Object.entries(sumMap).forEach(([k,v])=>{
+    if(LEAVE_SET.has(k)||k.startsWith('BIDA-'))totalLeave+=v;
+    else totalDuty+=v;
+  });
+  // Generate printable HTML
+  const rows=days.map(day=>{
+    const iso=day.date||day.isoDate;
+    const shift=day.duties?.[name]||'—';
+    const dt=new Date(iso);
+    const off=!shift||shift==='xx'||shift==='XX';
+    return`<tr style="border-bottom:1px solid #ddd">
+      <td style="padding:5px 8px">${iso}</td>
+      <td style="padding:5px 8px">${DAYS_NP?.[dt.getDay()]||''}</td>
+      <td style="padding:5px 8px;font-weight:600;color:${off?'#888':'#1a3a5c'}">${off?'Day Off':shift}</td>
+      <td style="padding:5px 8px;font-size:11px;color:#555">${off?'':dutyLabel(shift)}</td>
+    </tr>`;
+  }).join('');
+  const summaryRows=Object.entries(sumMap).map(([k,v])=>`<tr><td style="padding:4px 8px">${k==='Day Off'?'Day Off':(DUTY_NAMES?.[k]||k)}</td><td style="padding:4px 8px;font-weight:700;text-align:center">${v}</td></tr>`).join('');
+  const html=`<!DOCTYPE html><html><head><meta charset="UTF-8"/><title>Duty Report</title>
+  <style>body{font-family:Arial,sans-serif;margin:20px;color:#1a1a1a}h1{color:#1a3a5c;border-bottom:2px solid #1a3a5c;padding-bottom:8px}table{border-collapse:collapse;width:100%}th{background:#1a3a5c;color:#fff;padding:8px;text-align:left}tr:nth-child(even){background:#f5f5f5}.summary{display:flex;gap:20px;margin:16px 0}.sum-card{background:#f0f4f8;border-radius:8px;padding:12px 20px;text-align:center}.sum-card .num{font-size:28px;font-weight:700;color:#1a3a5c}.sum-card .lbl{font-size:12px;color:#666}@media print{button{display:none}}</style>
+  </head><body>
+  <h1>📋 MFD Duty Roster — Monthly Report</h1>
+  <table style="margin-bottom:16px;font-size:13px"><tr><td><b>Staff Name:</b></td><td>${name}</td><td><b>Role:</b></td><td>${RLABEL?.[role]||role}</td></tr>
+  <tr><td><b>Month:</b></td><td>${month.name||''}</td><td><b>Section:</b></td><td>${SEC_LABEL?.[S.user.section]||''}</td></tr>
+  <tr><td><b>Generated:</b></td><td colspan="3">${new Date().toLocaleString()}</td></tr></table>
+  <div class="summary">
+    <div class="sum-card"><div class="num">${days.length}</div><div class="lbl">Total Days</div></div>
+    <div class="sum-card"><div class="num">${totalDuty}</div><div class="lbl">Duty Days</div></div>
+    <div class="sum-card"><div class="num">${totalLeave}</div><div class="lbl">Leave Days</div></div>
+  </div>
+  <h2 style="color:#1a3a5c;font-size:15px">Duty Summary</h2>
+  <table style="width:auto;margin-bottom:20px"><tr><th>Shift</th><th>Days</th></tr>${summaryRows}</table>
+  <h2 style="color:#1a3a5c;font-size:15px">Day-by-Day Details</h2>
+  <table><tr><th>Date</th><th>Day</th><th>Shift</th><th>Description</th></tr>${rows}</table>
+  <div style="margin-top:20px;font-size:11px;color:#888;text-align:center">MFD Duty Roster App — Department of Hydrology and Meteorology, Nepal</div>
+  <script>window.onload=()=>window.print();</script>
+  </body></html>`;
+  const w=window.open('','_blank');
+  w.document.write(html);
+  w.document.close();
+}
+
+function loadReportMonths(){
+  const sel=document.getElementById('rpt-month');
+  if(!sel)return;
+  const months=new Set();
+  Object.values(S.rosters||{}).forEach(rd=>{
+    (rd.months||(Array.isArray(rd)?rd:[])).forEach(m=>{months.add(m.name||m.nepali||'');});
+  });
+  sel.innerHTML=[...months].map(m=>`<option value="${m}">${m}</option>`).join('');
+}
+
+function generateAdminPDF(){
+  const section=document.getElementById('rpt-section').value;
+  const role=document.getElementById('rpt-role').value;
+  const monthName=document.getElementById('rpt-month').value;
+  if(!monthName){alert('Month छान्नुस्');return;}
+  // Collect all staff for selected section/role
+  const staffList=[];
+  const secList=section==='all'?['avia','weather']:[section];
+  const roleList=role==='all'?['sdm','forecaster','observer']:[role];
+  secList.forEach(sec=>{
+    roleList.forEach(rk=>{
+      (S.staff?.[sec]?.[rk]||[]).forEach(name=>{
+        const rd=S.rosters[rk];
+        const months=rd?.months||(Array.isArray(rd)?rd:[]);
+        const month=months.find(m=>(m.name||m.nepali||'')===monthName);
+        if(month)staffList.push({name,role:rk,section:sec,month});
+      });
+    });
+  });
+  if(!staffList.length){alert('No data found for selected filters');return;}
+  // Build table
+  const tableRows=staffList.map(st=>{
+    const days=st.month.days||[];
+    const sumMap={};
+    days.forEach(day=>{
+      const shift=day.duties?.[st.name]||'';
+      const key=!shift||shift==='xx'||shift==='XX'?'Off':shift;
+      sumMap[key]=(sumMap[key]||0)+1;
+    });
+    const LEAVE_SET=new Set(['Off','xx','XX','SAT','BIDA-SAT','BIDA-GHR','BIDA-BIR']);
+    let duty=0,leave=0;
+    Object.entries(sumMap).forEach(([k,v])=>{if(LEAVE_SET.has(k)||k.startsWith('BIDA-'))leave+=v;else duty+=v;});
+    const shifts=Object.entries(sumMap).filter(([k])=>!LEAVE_SET.has(k)&&!k.startsWith('BIDA-')).map(([k,v])=>`${k}:${v}`).join(', ');
+    return`<tr style="border-bottom:1px solid #ddd">
+      <td style="padding:6px 8px">${st.name}</td>
+      <td style="padding:6px 8px">${RLABEL?.[st.role]||st.role}</td>
+      <td style="padding:6px 8px">${SEC_LABEL?.[st.section]||st.section}</td>
+      <td style="padding:6px 8px;text-align:center;font-weight:700;color:#1a3a5c">${duty}</td>
+      <td style="padding:6px 8px;text-align:center;color:#e53">${leave}</td>
+      <td style="padding:6px 8px;font-size:11px;color:#555">${shifts}</td>
+    </tr>`;
+  }).join('');
+  const html=`<!DOCTYPE html><html><head><meta charset="UTF-8"/><title>Admin Report</title>
+  <style>body{font-family:Arial,sans-serif;margin:20px}h1{color:#1a3a5c;border-bottom:2px solid #1a3a5c;padding-bottom:8px}table{border-collapse:collapse;width:100%}th{background:#1a3a5c;color:#fff;padding:8px;text-align:left}tr:nth-child(even){background:#f5f5f5}@media print{button{display:none}}</style>
+  </head><body>
+  <h1>📋 MFD Duty Roster — Admin Report</h1>
+  <p><b>Month:</b> ${monthName} &nbsp;|&nbsp; <b>Section:</b> ${section==='all'?'All':SEC_LABEL?.[section]||section} &nbsp;|&nbsp; <b>Role:</b> ${role==='all'?'All':(RLABEL?.[role]||role)} &nbsp;|&nbsp; <b>Generated:</b> ${new Date().toLocaleString()}</p>
+  <p><b>Total Staff:</b> ${staffList.length}</p>
+  <table><tr><th>Name</th><th>Role</th><th>Section</th><th>Duty Days</th><th>Leave Days</th><th>Shift Breakdown</th></tr>${tableRows}</table>
+  <div style="margin-top:20px;font-size:11px;color:#888;text-align:center">MFD Duty Roster App — Department of Hydrology and Meteorology, Nepal</div>
+  <script>window.onload=()=>window.print();</script>
+  </body></html>`;
+  const w=window.open('','_blank');
+  w.document.write(html);
+  w.document.close();
+}
+
+// ── DASHBOARD CHARTS ──────────────────────────────────────────────
+function renderDashboardChart(){
+  const el=document.getElementById('dashboard-chart');
+  if(!el||!S.user)return;
+  const role=S.user.role,name=S.user.name;
+  const c=getCurrentBsMonth();
+  const rd=S.rosters[role];
+  const months=rd?.months||(Array.isArray(rd)?rd:[]);
+  const month=months.find(m=>m.bsYear===c.bsY&&m.bsMonth===c.bsM);
+  if(!month){el.innerHTML='<div style="color:var(--text3);font-size:12px;padding:8px">No data for current month</div>';return;}
+  const sumMap={};
+  (month.days||[]).forEach(day=>{
+    const shift=day.duties?.[name]||'';
+    const key=!shift||shift==='xx'||shift==='XX'?'Off':shift;
+    sumMap[key]=(sumMap[key]||0)+1;
+  });
+  const total=Object.values(sumMap).reduce((a,b)=>a+b,0);
+  const colors=['#38bdf8','#34d399','#a78bfa','#fbbf24','#f87171','#2dd4bf','#fb923c','#e879f9'];
+  const entries=Object.entries(sumMap).sort((a,b)=>b[1]-a[1]);
+  // Simple bar chart
+  const bars=entries.map(([k,v],i)=>{
+    const pct=Math.round(v/total*100);
+    const color=colors[i%colors.length];
+    return`<div style="margin-bottom:8px">
+      <div style="display:flex;justify-content:space-between;font-size:11px;margin-bottom:2px">
+        <span style="color:var(--text2)">${k==='Off'?'Day Off':(DUTY_NAMES?.[k]||k)}</span>
+        <span style="color:${color};font-weight:700">${v} days (${pct}%)</span>
+      </div>
+      <div style="background:var(--bg3);border-radius:4px;height:8px;overflow:hidden">
+        <div style="width:${pct}%;height:100%;background:${color};border-radius:4px;transition:width .5s"></div>
+      </div>
+    </div>`;
+  }).join('');
+  el.innerHTML=`<div style="padding:12px 0">
+    <div style="font-size:12px;font-weight:700;color:var(--text2);margin-bottom:10px">📊 ${month.name||''} — Duty Distribution</div>
+    ${bars}
+    <button onclick="generateMyDutyPDF(${c.bsY},${c.bsM})" style="margin-top:10px;width:100%;padding:8px;background:var(--accent);color:#000;font-size:12px;font-weight:700;border:none;border-radius:8px;cursor:pointer">📄 Download PDF</button>
+  </div>`;
+}
+
+// ── AUDIT LOG ─────────────────────────────────────────────────────
+function logAudit(action,detail){
+  try{
+    const logs=JSON.parse(localStorage.getItem('mfd_audit')||'[]');
+    logs.unshift({
+      time:new Date().toISOString(),
+      admin:S.currentAdmin?.name||S.user?.name||'Unknown',
+      action,detail
+    });
+    // Keep last 200 entries
+    if(logs.length>200)logs.splice(200);
+    localStorage.setItem('mfd_audit',JSON.stringify(logs));
+    // Also save to Google Sheet
+    if(S.scriptUrl&&S.currentAdmin){
+      fetch(S.scriptUrl,{method:'POST',mode:'no-cors',body:JSON.stringify({
+        action:'saveAuditLog',
+        entry:{time:new Date().toISOString(),admin:S.currentAdmin.name,action,detail}
+      })}).catch(()=>{});
+    }
+  }catch(e){}
+}
+
+async function loadAuditLog(){
+  const el=document.getElementById('audit-list');
+  if(!el)return;
+  el.innerHTML='<div style="color:var(--text3);font-size:13px">⏳ Loading...</div>';
+  // Load from localStorage first
+  const localLogs=JSON.parse(localStorage.getItem('mfd_audit')||'[]');
+  // Try to load from server
+  let serverLogs=[];
+  try{
+    const res=await fetch(S.scriptUrl+'?action=getAuditLog');
+    const d=await res.json();
+    serverLogs=d.data||[];
+  }catch(e){}
+  // Merge and deduplicate
+  const allLogs=[...serverLogs,...localLogs].reduce((acc,log)=>{
+    if(!acc.find(l=>l.time===log.time&&l.action===log.action))acc.push(log);
+    return acc;
+  },[]).sort((a,b)=>new Date(b.time)-new Date(a.time)).slice(0,100);
+  if(!allLogs.length){el.innerHTML='<div style="color:var(--text3);font-size:13px">No audit logs yet.</div>';return;}
+  el.innerHTML=allLogs.map(log=>{
+    const dt=new Date(log.time);
+    const timeStr=dt.toLocaleDateString('ne-NP')+' '+dt.toLocaleTimeString();
+    const actionColor=log.action.includes('Delete')||log.action.includes('Remove')?'var(--red)':log.action.includes('Add')||log.action.includes('Upload')?'var(--green)':'var(--accent)';
+    return`<div style="background:var(--bg3);border-radius:8px;padding:10px 12px;margin-bottom:6px;border-left:3px solid ${actionColor}">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:3px">
+        <span style="font-size:12px;font-weight:700;color:${actionColor}">${log.action}</span>
+        <span style="font-size:10px;color:var(--text3)">${timeStr}</span>
+      </div>
+      <div style="font-size:11px;color:var(--text2)">${log.detail}</div>
+      <div style="font-size:10px;color:var(--text3);margin-top:2px">👤 ${log.admin||'Unknown'}</div>
+    </div>`;
+  }).join('');
+}
 // ── SERVICE WORKER ──
 function registerSW(){
   if('serviceWorker'in navigator){
