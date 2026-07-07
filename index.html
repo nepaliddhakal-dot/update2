@@ -2549,21 +2549,11 @@ function generateMyDutyPDF(bsY,bsM){
   <div style="margin-top:20px;font-size:11px;color:#888;text-align:center">MFD Duty Roster App — Department of Hydrology and Meteorology, Nepal</div>
   <script>window.onload=()=>setTimeout(()=>window.print(),100);</script>
   </body></html>`;
-  // Create hidden iframe for printing
-  const existing=document.getElementById('pdf-frame');
-  if(existing)existing.remove();
-  const iframe=document.createElement('iframe');
-  iframe.id='pdf-frame';
-  iframe.style.cssText='position:fixed;top:-9999px;left:-9999px;width:210mm;height:297mm;border:none;z-index:-1';
-  document.body.appendChild(iframe);
-  iframe.contentDocument.open();
-  iframe.contentDocument.write(html.replace('<script>window.onload=()=>setTimeout(()=>window.print(),100);</script>',''));
-  iframe.contentDocument.close();
-  setTimeout(()=>{
-    iframe.contentWindow.focus();
-    iframe.contentWindow.print();
-    setTimeout(()=>iframe.remove(),2000);
-  },800);
+  // Use Blob URL for printing
+  const blob=new Blob([html],{type:'text/html'});
+  const url=URL.createObjectURL(blob);
+  const w=window.open(url,'_blank');
+  setTimeout(()=>URL.revokeObjectURL(url),30000);
 }
 
 function loadReportMonths(){
@@ -2628,20 +2618,11 @@ function generateAdminPDF(){
   <div style="margin-top:20px;font-size:11px;color:#888;text-align:center">MFD Duty Roster App — Department of Hydrology and Meteorology, Nepal</div>
   <script>window.onload=()=>setTimeout(()=>window.print(),100);</script>
   </body></html>`;
-  const existing2=document.getElementById('pdf-frame-admin');
-  if(existing2)existing2.remove();
-  const iframe2=document.createElement('iframe');
-  iframe2.id='pdf-frame-admin';
-  iframe2.style.cssText='position:fixed;top:-9999px;left:-9999px;width:210mm;height:297mm;border:none;z-index:-1';
-  document.body.appendChild(iframe2);
-  iframe2.contentDocument.open();
-  iframe2.contentDocument.write(html.replace('<script>window.onload=()=>setTimeout(()=>window.print(),100);</script>',''));
-  iframe2.contentDocument.close();
-  setTimeout(()=>{
-    iframe2.contentWindow.focus();
-    iframe2.contentWindow.print();
-    setTimeout(()=>iframe2.remove(),2000);
-  },800);
+  // Use Blob URL for printing
+  const blob2=new Blob([html],{type:'text/html'});
+  const url2=URL.createObjectURL(blob2);
+  const w2=window.open(url2,'_blank');
+  setTimeout(()=>URL.revokeObjectURL(url2),30000);
 }
 
 // ── DASHBOARD CHARTS ──────────────────────────────────────────────
