@@ -1799,24 +1799,61 @@ const requested=selVal==='__custom__'
 
 // ── ADMIN LOGIN ──
 async function doAdminLogin(){
-  const u=document.getElementById('al-user').value.trim();const p=document.getElementById('al-pin').value.trim();
-  const err=document.getElementById('al-err');err.textContent='⏳ Checking...';
+  const u=document.getElementById('al-user').value.trim();
+  const p=document.getElementById('al-pin').value.trim();
+  const err=document.getElementById('al-err');
+  if(!u||!p){err.textContent='❌ Fill all fields';return;}
+  err.textContent='⏳ Checking...';
   let ok=false,adminName='';
+  // Get session token from server
   if(S.scriptUrl){
     try{
-      const ctrl=new AbortController();const t=setTimeout(()=>ctrl.abort(),5000);
-      const res=await fetch(S.scriptUrl+'?action=getCreds',{signal:ctrl.signal});clearTimeout(t);
+      const ctrl=new AbortController();
+      const t=setTimeout(()=>ctrl.abort(),5000);
+      // First verify credentials and get token
+      const res=await fetch(S.scriptUrl,{
+        method:'POST',
+        body:JSON.stringify({action:'generateToken',username:u,pin:p}),
+        signal:ctrl.signal
+      });
+      clearTimeout(t);
       const d=await res.json();
-      if(d.username&&d.pin&&u===d.username&&p===d.pin){ok=true;adminName=u+' (Master)';S.adminCreds={username:d.username,pin:d.pin};localStorage.setItem('mfd_admin',JSON.stringify(S.adminCreds));}
-    }catch(e){}
+      if(d.success&&d.token){
+        ok=true;
+        adminName=u+' (Master)';
+        S.sessionToken=d.token;
+        S.tokenExpires=d.expires;
+        localStorage.setItem('mfd_session_token',d.token);
+        localStorage.setItem('mfd_token_expires',String(d.expires));
+      } else if(d.error){
+        // Try local credentials as fallback
+        const cr=await fetch(S.scriptUrl+'?action=getCreds',{signal:new AbortController().signal}).then(r=>r.json()).catch(()=>null);
+        if(cr&&u===cr.username&&p===cr.pin){ok=true;adminName=u+' (Master)';}
+      }
+    }catch(e){
+      // Offline fallback
+      if(S.adminCreds?.username&&S.adminCreds?.pin&&u===S.adminCreds.username&&p===S.adminCreds.pin){
+        ok=true;adminName=u+' (Master)';
+      }
+    }
   }
-  if(!ok&&S.adminCreds.username&&S.adminCreds.pin&&u===S.adminCreds.username&&p===S.adminCreds.pin){ok=true;adminName=u+' (Master)';}
-  if(!ok){const sa=S.subAdmins.find(a=>a.username===u&&a.pin===p);if(sa){ok=true;adminName=sa.username;}}
+  // Local credential fallback
+  if(!ok&&S.adminCreds?.username&&S.adminCreds?.pin&&u===S.adminCreds.username&&p===S.adminCreds.pin){
+    ok=true;adminName=u+' (Master)';
+  }
+  // Sub-admin check
+  if(!ok){
+    const sa=S.subAdmins.find(a=>a.username===u&&String(a.pin)===String(p));
+    if(sa){ok=true;adminName=sa.username;}
+  }
   if(ok){
-    S.currentAdmin={name:adminName};document.getElementById('admin-hdr-name').textContent=adminName;
+    S.currentAdmin={name:adminName};
+    document.getElementById('admin-hdr-name').textContent=adminName;
     switchScreen('admin');renderAdminStaff();renderMonthsList();renderAdminsTab();
     document.getElementById('script-url').value=S.scriptUrl||'';
-  }else{err.textContent='❌ Incorrect username or PIN';}
+  }else{
+    err.textContent='❌ Incorrect username or PIN';
+  }
 }
 function closeAdmin(){switchScreen(S.user?'app':'login');}
 function forgotPin(){
