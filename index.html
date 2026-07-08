@@ -807,7 +807,7 @@ textarea.fi{resize:vertical;min-height:80px}
       <div class="fg"><label class="fl">CURRENT DUTY / भएको ड्युटि</label><input class="fi" id="swap-current" readonly style="background:var(--bg3);color:var(--accent);font-weight:700"/></div>
       <div class="fg"><label class="fl">CHANGE TO / गर्ने ड्युटि</label><select class="fi" id="swap-requested" onchange="onSwapRequestedChange(this)"><option value="">-- Select --</option></select></div>
       <div class="fg">
-        <label class="fl">🔁 SWAP WITH COLLEAGUE (optional)</label>
+        <label class="fl">🔁 SWAP WITH COLLEAGUE (optional, same role only)</label>
         <select class="fi" id="swap-with-colleague"><option value="">-- Admin decides (no specific swap partner) --</option></select>
         <div style="font-size:11px;color:var(--text3);margin-top:4px">छान्नुभयो भने त्यो colleague लाई पनि notification जान्छ।</div>
       </div>
@@ -2115,9 +2115,10 @@ function openSwapModal(){
   const colSel=document.getElementById('swap-with-colleague');
   if(colSel){
     const mySec=S.user.section||'avia';
-    const colleagues=(S.staffFlat||[]).filter(s=>s.section===mySec&&s.name!==S.user.name);
+    const myRole=S.user.role;
+    const colleagues=(S.staffFlat||[]).filter(s=>s.section===mySec&&s.role===myRole&&s.name!==S.user.name);
     colSel.innerHTML='<option value="">-- Admin decides (no specific swap partner) --</option>'+
-      colleagues.map(c=>`<option value="${c.name}">${c.name} (${RLABEL[c.role]||c.role})</option>`).join('');
+      colleagues.map(c=>`<option value="${c.name}">${c.name}</option>`).join('');
   }
   document.getElementById('swap-modal').style.display='flex';
   loadMyRequests();
