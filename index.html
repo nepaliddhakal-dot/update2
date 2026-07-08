@@ -1170,7 +1170,13 @@ function switchAdminTab(tab,el){
   if(tab==='staff'){renderAdminStaff();checkUnassigned();}
  if(tab==='months')renderMonthsList();if(tab==='admins')renderAdminsTab();if(tab==='edit')loadEditMonths();if(tab==='requests')loadSwapRequests();if(tab==='roster'){const c=getCurrentBsMonth();afrBsYear=c.bsY;afrBsMonth=c.bsM;renderAdminFullRoster();}if(tab==='notify'){setNotifTarget('all');loadNotifHistory();}
 if(tab==='report'){loadReportMonths();}
-if(tab==='audit'){loadAuditLog();}
+if(tab==='audit'){
+  if(S.currentAdmin?.name&&S.currentAdmin.name.includes('(Master)')){
+    loadAuditLog();
+  } else {
+    document.getElementById('audit-list').innerHTML='<div style="color:var(--red);font-size:13px;padding:8px">❌ Master Admin मात्र access गर्न सक्छ।</div>';
+  }
+}
 }
 
 // ── TODAY TAB ──
@@ -2121,7 +2127,7 @@ async function doAdminLogin(){
   if(ok){
     S.currentAdmin={name:adminName};
     document.getElementById('admin-hdr-name').textContent=adminName;
-    switchScreen('admin');renderAdminStaff();renderMonthsList();renderAdminsTab();
+    switchScreen('admin');renderAdminStaff();renderMonthsList();renderAdminsTab();updateAdminTabVisibility();
     document.getElementById('script-url').value=S.scriptUrl||'';
   }else{
     err.textContent='❌ Incorrect username or PIN';
@@ -2251,6 +2257,11 @@ function switchSecTab(sec){
   document.getElementById('stab-weather').className='sec-tab'+(sec==='weather'?' weather-on':'');
   document.getElementById('staff-avia').style.display=sec==='avia'?'block':'none';
   document.getElementById('staff-weather').style.display=sec==='weather'?'block':'none';
+}
+function updateAdminTabVisibility(){
+  const isMaster=S.currentAdmin?.name?.includes('(Master)');
+  const auditBtn=document.querySelector('[onclick*="audit"]');
+  if(auditBtn)auditBtn.style.display=isMaster?'':'none';
 }
 function renderAdminStaff(){
   for(const sec of['avia','weather']){for(const role of['observer','forecaster','sdm']){
