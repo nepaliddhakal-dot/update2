@@ -1170,13 +1170,7 @@ function switchAdminTab(tab,el){
   if(tab==='staff'){renderAdminStaff();checkUnassigned();}
  if(tab==='months')renderMonthsList();if(tab==='admins')renderAdminsTab();if(tab==='edit')loadEditMonths();if(tab==='requests')loadSwapRequests();if(tab==='roster'){const c=getCurrentBsMonth();afrBsYear=c.bsY;afrBsMonth=c.bsM;renderAdminFullRoster();}if(tab==='notify'){setNotifTarget('all');loadNotifHistory();}
 if(tab==='report'){loadReportMonths();}
-if(tab==='audit'){
-  if(S.currentAdmin?.name&&S.currentAdmin.name.includes('(Master)')){
-    loadAuditLog();
-  } else {
-    document.getElementById('audit-list').innerHTML='<div style="color:var(--red);font-size:13px;padding:8px">❌ Master Admin मात्र access गर्न सक्छ।</div>';
-  }
-}
+if(tab==='audit'){loadAuditLog();}
 }
 
 // ── TODAY TAB ──
@@ -2127,7 +2121,7 @@ async function doAdminLogin(){
   if(ok){
     S.currentAdmin={name:adminName};
     document.getElementById('admin-hdr-name').textContent=adminName;
-    switchScreen('admin');renderAdminStaff();renderMonthsList();renderAdminsTab();updateAdminTabVisibility();
+    switchScreen('admin');renderAdminStaff();renderMonthsList();renderAdminsTab();
     document.getElementById('script-url').value=S.scriptUrl||'';
   }else{
     err.textContent='❌ Incorrect username or PIN';
@@ -2257,11 +2251,6 @@ function switchSecTab(sec){
   document.getElementById('stab-weather').className='sec-tab'+(sec==='weather'?' weather-on':'');
   document.getElementById('staff-avia').style.display=sec==='avia'?'block':'none';
   document.getElementById('staff-weather').style.display=sec==='weather'?'block':'none';
-}
-function updateAdminTabVisibility(){
-  const isMaster=S.currentAdmin?.name?.includes('(Master)');
-  const auditBtn=document.querySelector('[onclick*="audit"]');
-  if(auditBtn)auditBtn.style.display=isMaster?'':'none';
 }
 function renderAdminStaff(){
   for(const sec of['avia','weather']){for(const role of['observer','forecaster','sdm']){
@@ -2671,19 +2660,23 @@ function renderSwapRequests(requests){
         <div class="fg"><label class="fl">Admin Note (optional)</label>
           <input class="fi" id="note-${r.rowIndex}" placeholder="Reason for rejection, etc." style="font-size:12px"/></div>
         <div style="display:flex;gap:8px">
-          <button class="btn-green" onclick="resolveRequest(${r.rowIndex},'${r.user}','${r.role}','${r.date}','${r.requested}','Approved')" style="flex:1;padding:9px;font-size:13px">✅ Approve</button>
-          <button class="btn-red" onclick="resolveRequest(${r.rowIndex},'${r.user}','${r.role}','${r.date}','${r.requested}','Rejected')" style="flex:1;padding:9px;font-size:13px">❌ Reject</button>
+          <button class="btn-green" onclick="resolveRequest(${r.rowIndex},'${r.fileId||''}','${r.user}','${r.role}','${r.date}','${r.requested}','Approved')" style="flex:1;padding:9px;font-size:13px">✅ Approve</button>
+          <button class="btn-red" onclick="resolveRequest(${r.rowIndex},'${r.fileId||''}','${r.user}','${r.role}','${r.date}','${r.requested}','Rejected')" style="flex:1;padding:9px;font-size:13px">❌ Reject</button>
         </div>`:''}
     </div>`;
   }).join('');
 }
-async function resolveRequest(rowIndex,user,role,date,requested,status){
+async function resolveRequest(rowIndex,fileId,user,role,date,requested,status){
   if(!confirm(status+' this request?\n\nUser: '+user+'\nDate: '+date+'\nNew duty: '+requested))return;
   const adminNote=document.getElementById('note-'+rowIndex)?.value.trim()||'';
   try{
-    await fetch(S.scriptUrl,{method:'POST',mode:'no-cors',body:JSON.stringify({
-      action:'resolveSwapRequest',rowIndex,user,role,date,requested,status,adminNote
-    })});
+    await fetch(S.scriptUrl,{
+      method:'POST',
+      body:JSON.stringify({
+        action:'resolveSwapRequest',
+        rowIndex, fileId:fileId||'', user, role, date, requested, status, adminNote
+      })
+    });
     alert('✅ '+status+'! Roster updated and staff notified.');
     loadSwapRequests();
     // Also refresh roster if approved
