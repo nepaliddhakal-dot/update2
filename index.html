@@ -302,6 +302,10 @@ textarea.fi{resize:vertical;min-height:80px}
   <span style="font-size:13px;font-weight:600">🔄 New update available!</span>
   <button onclick="window.location.reload()" style="background:#071a10;color:var(--green);border:none;padding:6px 14px;border-radius:8px;font-size:12px;font-weight:700;cursor:pointer">Update Now</button>
 </div>
+<div id="conn-banner" style="display:none;position:fixed;top:0;left:0;right:0;z-index:9500;background:#7c2d12;color:#fff;padding:8px 14px;font-size:12px;font-weight:600;text-align:center;align-items:center;justify-content:center;gap:10px">
+  <span id="conn-banner-text">📶 Server से जोड्न सकिएन — पुरानो (cached) data देखाइँदैछ</span>
+  <button onclick="retrySync()" style="background:#fff;color:#7c2d12;border:none;padding:4px 12px;border-radius:6px;font-size:11px;font-weight:700;cursor:pointer">Retry</button>
+</div>
 <div id="loading-screen"><div class="ls-icon">⛅</div><div class="ls-spinner"></div></div>
 
 <!-- LOGIN -->
@@ -507,6 +511,7 @@ textarea.fi{resize:vertical;min-height:80px}
     <button class="at-btn" onclick="switchAdminTab('roster',this)">📊 Full Roster</button>
     <button class="at-btn" onclick="switchAdminTab('notify',this)">📢 Notify</button>
     <button class="at-btn" onclick="switchAdminTab('report',this)">📄 Report</button>
+    <button class="at-btn" onclick="switchAdminTab('tools',this)">🛠️ Tools</button>
     <button class="at-btn" onclick="switchAdminTab('audit',this)">🔍 Audit</button>
   </div>
   <div class="admin-body">
@@ -627,6 +632,41 @@ textarea.fi{resize:vertical;min-height:80px}
         📄 Generate & Download PDF
       </button>
       <div id="rpt-preview" style="margin-top:16px"></div>
+    </div>
+
+    <div class="admin-panel" id="ap-tools">
+      <!-- Pending Approvals (only meaningful for master admin) -->
+      <div class="a-card-title">🔐 Pending Approvals</div>
+      <div class="a-info">Sub-admin ले गरेको security-sensitive परिवर्तन (PIN change, sub-admin list change) यहाँ Master Admin को स्वीकृतिको लागि पर्खिरहन्छ।</div>
+      <div style="display:flex;gap:8px;margin:8px 0"><button class="btn-outline" onclick="loadPendingApprovals()" style="padding:5px 12px;font-size:12px">🔄 Refresh</button></div>
+      <div id="pending-approvals-list" style="margin-bottom:20px"><div style="color:var(--text3);font-size:13px">Tab खोल्दा load हुन्छ।</div></div>
+
+      <hr style="border-color:var(--border);margin:16px 0"/>
+
+      <!-- Understaffing / gap detector -->
+      <div class="a-card-title">🚨 Understaffing Gap Detector</div>
+      <div class="a-info">यो महिनाको roster मा कुनै date/role मा कोही नराखिएको भए यहाँ देखिन्छ।</div>
+      <button class="btn-outline" onclick="runGapDetector()" style="margin:8px 0;padding:8px 14px;font-size:12px">🔍 Check This Month for Gaps</button>
+      <div id="gap-detector-result"></div>
+
+      <hr style="border-color:var(--border);margin:16px 0"/>
+
+      <!-- Multi-month workload report -->
+      <div class="a-card-title">📊 Staff Workload Report</div>
+      <div class="a-info">धेरै महिना छानेर हरेक staff को total duty/leave days हेर्नुहोस्।</div>
+      <div style="display:flex;gap:8px;align-items:center;margin:8px 0;flex-wrap:wrap">
+        <button class="btn-outline" onclick="loadMonthFilesForReport()" style="padding:6px 12px;font-size:12px">📅 Load Months</button>
+        <button class="btn-outline" onclick="runWorkloadReport()" style="padding:6px 12px;font-size:12px">📊 Generate Report</button>
+      </div>
+      <div id="workload-months-picker" style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:10px"></div>
+      <div id="workload-report-result"></div>
+
+      <hr style="border-color:var(--border);margin:16px 0"/>
+
+      <!-- Excel export -->
+      <div class="a-card-title">📥 Export Month to Excel</div>
+      <div class="a-info">कुनै एक महिनाको पूरा roster Excel (.xlsx) मा download गर्नुहोस्।</div>
+      <div id="export-months-picker" style="display:flex;flex-wrap:wrap;gap:6px;margin-top:8px"></div>
     </div>
 
     <div class="admin-panel" id="ap-audit">
@@ -766,6 +806,11 @@ textarea.fi{resize:vertical;min-height:80px}
       <div class="fg"><label class="fl">DATE / मिति</label><input class="fi" type="date" id="swap-date" onchange="onSwapDateChange()"/></div>
       <div class="fg"><label class="fl">CURRENT DUTY / भएको ड्युटि</label><input class="fi" id="swap-current" readonly style="background:var(--bg3);color:var(--accent);font-weight:700"/></div>
       <div class="fg"><label class="fl">CHANGE TO / गर्ने ड्युटि</label><select class="fi" id="swap-requested" onchange="onSwapRequestedChange(this)"><option value="">-- Select --</option></select></div>
+      <div class="fg">
+        <label class="fl">🔁 SWAP WITH COLLEAGUE (optional)</label>
+        <select class="fi" id="swap-with-colleague"><option value="">-- Admin decides (no specific swap partner) --</option></select>
+        <div style="font-size:11px;color:var(--text3);margin-top:4px">छान्नुभयो भने त्यो colleague लाई पनि notification जान्छ।</div>
+      </div>
       <div class="fg"><label class="fl">MESSAGE / सन्देश</label><textarea class="fi" id="swap-message" rows="3" placeholder="कारण लेख्नुहोस्..."></textarea></div>
      <div id="swap-custom-wrap" style="display:none">
   <label class="fl">आफैं लेख्नुहोस्</label>
@@ -965,7 +1010,29 @@ window.addEventListener('load',()=>{
   if(su){S.user=JSON.parse(su);enterApp();}
   hideLoading();registerSW();
   setTimeout(()=>syncData(true).catch(()=>{}),500);
+  initInactivityTimer();
 });
+
+// ── SESSION EXPIRY (inactivity auto-logout) ──
+const INACTIVITY_LIMIT_MS=30*60*1000; // 30 minutes
+let _lastActivity=Date.now();
+function initInactivityTimer(){
+  ['click','keydown','touchstart','mousemove','scroll'].forEach(ev=>{
+    document.addEventListener(ev,()=>{_lastActivity=Date.now();},{passive:true});
+  });
+  setInterval(()=>{
+    if(Date.now()-_lastActivity<INACTIVITY_LIMIT_MS)return;
+    _lastActivity=Date.now(); // reset so the alert doesn't refire immediately
+    if(S.currentAdmin){
+      S.currentAdmin=null;
+      alert('⏰ निष्क्रियताको कारण Admin session बन्द भयो। पुनः login गर्नुहोस्।');
+      switchScreen(S.user?'app':'login');
+    }else if(S.user&&document.getElementById('screen-app')?.classList.contains('active')){
+      // Staff session: quieter — just note it, don't force logout of a shared/kiosk device unnecessarily
+      // (staff login has no PIN, so we only expire the higher-privilege admin session automatically)
+    }
+  },60*1000); // check every minute
+}
 const DEFAULT_URL='https://script.google.com/macros/s/AKfycbwhBzeRAyaqB134Mfn8lBC_075jftKbyu7tT858Kf4IXN8MEX1V412uCKsy96GyrPj1/exec';
 function loadLocal(){
   try{
@@ -981,14 +1048,40 @@ function loadLocal(){
 }
 function hideLoading(){const el=document.getElementById('loading-screen');el.classList.add('hide');setTimeout(()=>el.style.display='none',500);}
 
+// ── FETCH RESILIENCE (retry + persistent offline banner) ──
+async function fetchWithRetry(url,opts={},retries=2,timeoutMs=8000){
+  for(let attempt=0;attempt<=retries;attempt++){
+    try{
+      const ctrl=new AbortController();
+      const t=setTimeout(()=>ctrl.abort(),timeoutMs);
+      const res=await fetch(url,{...opts,signal:ctrl.signal});
+      clearTimeout(t);
+      if(!res.ok)throw new Error('HTTP '+res.status);
+      return res;
+    }catch(e){
+      if(attempt===retries)throw e;
+      await new Promise(r=>setTimeout(r,600*(attempt+1))); // simple backoff
+    }
+  }
+}
+function showConnBanner(msg){
+  const b=document.getElementById('conn-banner');
+  if(!b)return;
+  document.getElementById('conn-banner-text').textContent=msg||'📶 Server से जोड्न सकिएन — पुरानो (cached) data देखाइँदैछ';
+  b.style.display='flex';
+}
+function hideConnBanner(){const b=document.getElementById('conn-banner');if(b)b.style.display='none';}
+function retrySync(){hideConnBanner();syncData(false);}
+
 // ── SYNC ──
 async function syncData(silent=false){
   if(!S.scriptUrl){hideLoading();return;}
   showToast('Syncing roster data...',10);
   try{
-    const res=await fetch(S.scriptUrl+'?action=getRosters');const data=await res.json();
+    const res=await fetchWithRetry(S.scriptUrl+'?action=getRosters',{},2,8000);
+    const data=await res.json();
     showToast('Updating local data...',75);
-    if(data.rosters){S.rosters=data.rosters;localStorage.setItem('mfd_rosters',JSON.stringify(S.rosters));}
+    if(data.rosters){S.rosters=data.rosters;localStorage.setItem('mfd_rosters',JSON.stringify(S.rosters));localStorage.setItem('mfd_rosters_ts',new Date().toISOString());}
     if(data.staff){
       const srv=data.staff;
       if(srv.avia||srv.weather){S.staff=srv;}else{S.staff={avia:{observer:srv.observer||[],forecaster:srv.forecaster||[],sdm:srv.sdm||[]},weather:{observer:[],forecaster:[],sdm:[]}};}
@@ -1006,9 +1099,15 @@ async function syncData(silent=false){
       }
     }
     showToast('✅ Sync complete!',100);setTimeout(hideToast,1500);
+    hideConnBanner();
     if(S.user){renderToday();renderMyDuties();renderCalendar();renderFullRoster();}
     populateNameDrop();renderAdminStaff();renderMonthsList();
-  }catch(e){showToast('📶 Offline — using cached data',100);setTimeout(hideToast,2000);}
+  }catch(e){
+    showToast('📶 Offline — using cached data',100);setTimeout(hideToast,2000);
+    const cachedTs=localStorage.getItem('mfd_rosters_ts');
+    showConnBanner(cachedTs?('📶 Server unreachable — showing data from '+new Date(cachedTs).toLocaleString()):'📶 Server unreachable and no cached data yet — check your connection');
+    if(S.user){renderToday();renderMyDuties();renderCalendar();renderFullRoster();}
+  }
   hideLoading();
 }
 function showToast(msg,pct){
@@ -1170,6 +1269,7 @@ function switchAdminTab(tab,el){
   if(tab==='staff'){renderAdminStaff();checkUnassigned();}
  if(tab==='months')renderMonthsList();if(tab==='admins')renderAdminsTab();if(tab==='edit')loadEditMonths();if(tab==='requests')loadSwapRequests();if(tab==='roster'){const c=getCurrentBsMonth();afrBsYear=c.bsY;afrBsMonth=c.bsM;renderAdminFullRoster();}if(tab==='notify'){setNotifTarget('all');loadNotifHistory();}
 if(tab==='report'){loadReportMonths();}
+if(tab==='tools'){loadPendingApprovals();loadMonthFilesForReport();}
 if(tab==='audit'){loadAuditLog();}
 }
 
@@ -1326,11 +1426,43 @@ function renderMyDuties(){
       </div></div>`;
   }else{sumHtml='<div style="padding:20px;text-align:center;color:var(--text3);font-size:13px">No roster data for this month.</div>';}
   document.getElementById('md-list').innerHTML=html+sumHtml+`
-    <div style="padding:0 12px 24px">
+    <div style="padding:0 12px 12px">
+      <button onclick="showMyYearSummary()" style="width:100%;padding:12px;background:var(--card2);color:var(--text);border:1px solid var(--border2);font-size:13px;font-weight:700;border-radius:var(--radius);cursor:pointer;display:flex;align-items:center;justify-content:center;gap:8px;margin-bottom:8px">
+        📊 View My Year-to-Date Leave Balance
+      </button>
       <button onclick="generateMyDutyPDF(${bsY},${bsM})" style="width:100%;padding:12px;background:var(--accent);color:#000;font-size:13px;font-weight:700;border:none;border-radius:var(--radius);cursor:pointer;display:flex;align-items:center;justify-content:center;gap:8px">
         📄 Download Monthly Report PDF
       </button>
     </div>`;
+}
+async function showMyYearSummary(){
+  if(!S.user)return;
+  const modal=document.getElementById('day-modal')||document.body;
+  const box=document.createElement('div');
+  box.style.cssText='position:fixed;inset:0;z-index:9999;background:rgba(0,0,0,.6);display:flex;align-items:center;justify-content:center;padding:16px';
+  box.innerHTML=`<div style="background:var(--card);border-radius:var(--radius);padding:20px;max-width:400px;width:100%;max-height:80vh;overflow-y:auto">
+    <div style="font-size:15px;font-weight:700;margin-bottom:10px">📊 ${S.user.name} — Year-to-Date</div>
+    <div id="year-summary-body" style="font-size:13px;color:var(--text2)">⏳ Loading...</div>
+    <button onclick="this.closest('div[style*=fixed]').remove()" style="margin-top:14px;width:100%;padding:10px;background:var(--card2);border:1px solid var(--border2);border-radius:8px;color:var(--text);font-size:13px;cursor:pointer">Close</button>
+  </div>`;
+  document.body.appendChild(box);
+  try{
+    const filesRes=await fetch(S.scriptUrl+'?action=getMonthFiles');
+    const filesD=await filesRes.json();
+    const fileIds=(filesD.data||[]).map(f=>f.fileId);
+    if(!fileIds.length){document.getElementById('year-summary-body').innerHTML='No monthly files found.';return;}
+    const res=await fetch(S.scriptUrl+'?action=getWorkloadReport&fileIds='+fileIds.join(','));
+    const d=await res.json();
+    const mine=(d.data||[]).find(r=>r.name===S.user.name);
+    const body=document.getElementById('year-summary-body');
+    if(!mine){body.innerHTML='No data found yet for you across saved months.';return;}
+    body.innerHTML=`
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:6px">
+        <div class="summary-item"><div class="si-shift-label">कुल Duty दिन</div><div class="si-count duty">${mine.dutyDays}<span style="font-size:12px;font-weight:400"> दिन</span></div></div>
+        <div class="summary-item"><div class="si-shift-label">कुल बिदा दिन</div><div class="si-count offc">${mine.leaveDays}<span style="font-size:12px;font-weight:400"> दिन</span></div></div>
+      </div>
+      <div style="margin-top:10px;font-size:11px;color:var(--text3)">${mine.monthsCounted} महिनाको saved data आधारमा गणना गरिएको।</div>`;
+  }catch(e){document.getElementById('year-summary-body').innerHTML='<span style="color:var(--red)">Load failed. Check connection.</span>';}
 }
 
 // ── CALENDAR ──
@@ -1980,6 +2112,13 @@ function openSwapModal(){
   fillSwapForDate(todayISO());
   document.getElementById('swap-message').value='';
   document.getElementById('swap-err').textContent='';
+  const colSel=document.getElementById('swap-with-colleague');
+  if(colSel){
+    const mySec=S.user.section||'avia';
+    const colleagues=(S.staffFlat||[]).filter(s=>s.section===mySec&&s.name!==S.user.name);
+    colSel.innerHTML='<option value="">-- Admin decides (no specific swap partner) --</option>'+
+      colleagues.map(c=>`<option value="${c.name}">${c.name} (${RLABEL[c.role]||c.role})</option>`).join('');
+  }
   document.getElementById('swap-modal').style.display='flex';
   loadMyRequests();
 }
@@ -2051,6 +2190,7 @@ const requested=selVal==='__custom__'
   ? document.getElementById('swap-custom-input').value.trim()
   : selVal;
   const message=document.getElementById('swap-message').value.trim();
+  const swapWithName=document.getElementById('swap-with-colleague')?document.getElementById('swap-with-colleague').value:'';
   const err=document.getElementById('swap-err');
   if(!date){err.textContent='❌ Please select a date';return;}
   if(!requested){err.textContent='❌ Please select a requested duty';return;}
@@ -2059,13 +2199,13 @@ const requested=selVal==='__custom__'
   err.textContent='⏳ Sending...';
   const tabName=SEC_ABBR[S.user.section||'avia']+'-'+RLABEL[S.user.role];
   try{
-    await fetch(S.scriptUrl,{method:'POST',mode:'no-cors',body:JSON.stringify({
+    await fetch(S.scriptUrl,{method:'POST',body:JSON.stringify({
       action:'saveSwapRequest',tabName,user:S.user.name,role:RLABEL[S.user.role],
-      section:SEC_LABEL[S.user.section||'avia'],date,currentDuty:current,requestedDuty:requested,message,
+      section:S.user.section||'avia',date,currentDuty:current,requestedDuty:requested,swapWithName,message,
       timestamp:new Date().toISOString()
     })});
     document.getElementById('swap-modal').style.display='none';
-    alert('✅ Request sent! Admin लाई अनुरोध पठाइयो।');
+    alert(swapWithName?'✅ Request sent! '+swapWithName+' लाई पनि सूचित गरियो, र Admin लाई अनुरोध पठाइयो।':'✅ Request sent! Admin लाई अनुरोध पठाइयो।');
   }catch(e){err.textContent='❌ Failed to send. Check connection.';}
 }
 
@@ -2119,7 +2259,7 @@ async function doAdminLogin(){
     if(sa){ok=true;adminName=sa.username;}
   }
   if(ok){
-    S.currentAdmin={name:adminName};
+    S.currentAdmin={name:adminName,isMaster:adminName.includes('(Master)'),username:u};
     document.getElementById('admin-hdr-name').textContent=adminName;
     switchScreen('admin');renderAdminStaff();renderMonthsList();renderAdminsTab();
     document.getElementById('script-url').value=S.scriptUrl||'';
@@ -2396,7 +2536,17 @@ async function saveMasterCreds(){
   if(!u){alert('Username required');return;}
   if(p){const err=validatePassword(p);if(err){alert('❌ '+err);return;}S.adminCreds={username:u,pin:p};}else{S.adminCreds.username=u;}
   localStorage.setItem('mfd_admin',JSON.stringify(S.adminCreds));
-  if(S.scriptUrl&&p){showToast('Syncing...',50);try{await fetch(S.scriptUrl,{method:'POST',mode:'no-cors',body:JSON.stringify({action:'saveCreds',username:u,pin:p})});showToast('✅ Saved!',100);setTimeout(hideToast,1500);alert('✅ Password changed!');}catch(e){hideToast();alert('✅ Saved locally.');}}
+  const actorRole=(S.currentAdmin&&!S.currentAdmin.isMaster)?'subadmin':'master';
+  if(S.scriptUrl&&p){
+    showToast('Syncing...',50);
+    try{
+      const res=await fetch(S.scriptUrl,{method:'POST',body:JSON.stringify({action:'saveCreds',username:u,pin:p,actorRole,actorName:S.currentAdmin?.name||u})});
+      const d=await res.json();
+      showToast('✅ Saved!',100);setTimeout(hideToast,1500);
+      if(d.pendingApproval)alert('🔐 '+d.message);
+      else alert('✅ Password changed!');
+    }catch(e){hideToast();alert('✅ Saved locally (server sync will retry).');}
+  }
   else alert('✅ Username saved!');
 }
 function addSubAdmin(){
@@ -2410,9 +2560,13 @@ function addSubAdmin(){
   document.getElementById('sa-user').value='';
   document.getElementById('sa-pin').value='';
   document.getElementById('sa-email').value='';
-  // Save to Google Sheet
-  if(S.scriptUrl){fetch(S.scriptUrl,{method:'POST',mode:'no-cors',body:JSON.stringify({action:'saveSubAdmins',subAdmins:S.subAdmins})}).catch(()=>{});}
-  renderAdminsTab();alert('✅ Sub-admin added!');
+  // Save to Google Sheet (sub-admin-initiated changes require Master approval)
+  if(S.scriptUrl){
+    const actorRole=(S.currentAdmin&&!S.currentAdmin.isMaster)?'subadmin':'master';
+    fetch(S.scriptUrl,{method:'POST',body:JSON.stringify({action:'saveSubAdmins',subAdmins:S.subAdmins,actorRole,actorName:S.currentAdmin?.name||u})})
+      .then(r=>r.json()).then(d=>{if(d.pendingApproval)alert('🔐 '+d.message);}).catch(()=>{});
+  }
+  renderAdminsTab();alert('✅ Sub-admin added!'+((S.currentAdmin&&!S.currentAdmin.isMaster)?' (Master approval चाहिन्छ)':''));
 }
 async function sendSubAdminResetCode(i){
   const sa=S.subAdmins[i];
@@ -2484,7 +2638,7 @@ async function submitNewPin(){
   const err=validatePassword(p1);if(err){errEl.textContent='❌ '+err;return;}
   if(p1!==p2){errEl.textContent='❌ Passwords do not match';return;}
   const u=S.adminCreds.username||'admin';S.adminCreds={username:u,pin:p1};localStorage.setItem('mfd_admin',JSON.stringify(S.adminCreds));
-  try{await fetch(S.scriptUrl,{method:'POST',mode:'no-cors',body:JSON.stringify({action:'saveCreds',username:u,pin:p1})});}catch(e){}
+  try{await fetch(S.scriptUrl,{method:'POST',body:JSON.stringify({action:'saveCreds',username:u,pin:p1})});}catch(e){}
   document.getElementById('reset-pin-modal').classList.remove('open');alert('✅ Password changed!');
 }
   // ── MY REQUESTS (STAFF) ──
@@ -2660,13 +2814,13 @@ function renderSwapRequests(requests){
         <div class="fg"><label class="fl">Admin Note (optional)</label>
           <input class="fi" id="note-${r.rowIndex}" placeholder="Reason for rejection, etc." style="font-size:12px"/></div>
         <div style="display:flex;gap:8px">
-          <button class="btn-green" onclick="resolveRequest(${r.rowIndex},'${r.fileId||''}','${r.user}','${r.role}','${r.date}','${r.requested}','Approved')" style="flex:1;padding:9px;font-size:13px">✅ Approve</button>
-          <button class="btn-red" onclick="resolveRequest(${r.rowIndex},'${r.fileId||''}','${r.user}','${r.role}','${r.date}','${r.requested}','Rejected')" style="flex:1;padding:9px;font-size:13px">❌ Reject</button>
+          <button class="btn-green" onclick="resolveRequest(${r.rowIndex},'${r.fileId||''}','${r.user}','${r.role}','${r.section||''}','${r.date}','${r.requested}','Approved')" style="flex:1;padding:9px;font-size:13px">✅ Approve</button>
+          <button class="btn-red" onclick="resolveRequest(${r.rowIndex},'${r.fileId||''}','${r.user}','${r.role}','${r.section||''}','${r.date}','${r.requested}','Rejected')" style="flex:1;padding:9px;font-size:13px">❌ Reject</button>
         </div>`:''}
     </div>`;
   }).join('');
 }
-async function resolveRequest(rowIndex,fileId,user,role,date,requested,status){
+async function resolveRequest(rowIndex,fileId,user,role,section,date,requested,status){
   if(!confirm(status+' this request?\n\nUser: '+user+'\nDate: '+date+'\nNew duty: '+requested))return;
   const adminNote=document.getElementById('note-'+rowIndex)?.value.trim()||'';
   try{
@@ -2674,10 +2828,10 @@ async function resolveRequest(rowIndex,fileId,user,role,date,requested,status){
       method:'POST',
       body:JSON.stringify({
         action:'resolveSwapRequest',
-        rowIndex, fileId:fileId||'', user, role, date, requested, status, adminNote
+        rowIndex, fileId:fileId||'', user, role, section, date, requested, status, adminNote
       })
     });
-    alert('✅ '+status+'! Roster updated and staff notified.');
+    alert('✅ '+status+'! Roster updated and staff notified.'+(status==='Approved'?' Section-wide notification पनि पठाइयो।':''));
     loadSwapRequests();
     // Also refresh roster if approved
     if(status==='Approved')syncData(true);
@@ -2945,7 +3099,140 @@ async function loadAuditLog(){
     </div>`;
   }).join('');
 }
-// ── SERVICE WORKER ──
+// ── TOOLS TAB: Pending Approvals (two-tier admin approval) ──
+async function loadPendingApprovals(){
+  const el=document.getElementById('pending-approvals-list');
+  if(!el)return;
+  el.innerHTML='<div style="color:var(--text3);font-size:13px">⏳ Loading...</div>';
+  try{
+    const res=await fetch(S.scriptUrl+'?action=getPendingApprovals');
+    const d=await res.json();
+    const list=d.data||[];
+    if(!list.length){el.innerHTML='<div style="color:var(--text3);font-size:13px">कुनै pending approval छैन।</div>';return;}
+    const isMaster=S.currentAdmin&&S.currentAdmin.isMaster;
+    el.innerHTML=list.map(p=>`
+      <div style="background:var(--bg3);border-radius:8px;padding:10px 12px;margin-bottom:8px;border-left:3px solid var(--yellow)">
+        <div style="font-size:12px;font-weight:700;color:var(--yellow)">${p.targetAction}</div>
+        <div style="font-size:12px;color:var(--text2);margin:3px 0">${p.summary}</div>
+        <div style="font-size:10px;color:var(--text3)">👤 ${p.requestedBy} • ${new Date(p.timestamp).toLocaleString()}</div>
+        ${isMaster?`<div style="display:flex;gap:8px;margin-top:8px">
+          <button class="btn-green" onclick="approvePendingAction(${p.rowIndex})" style="flex:1;padding:6px;font-size:11px">✅ Approve</button>
+          <button class="btn-red" onclick="rejectPendingAction(${p.rowIndex})" style="flex:1;padding:6px;font-size:11px">❌ Reject</button>
+        </div>`:`<div style="font-size:10px;color:var(--text3);margin-top:6px">Master Admin ले मात्र approve गर्न सक्नुहुन्छ।</div>`}
+      </div>`).join('');
+  }catch(e){el.innerHTML='<div style="color:var(--red);font-size:13px">Load failed.</div>';}
+}
+async function approvePendingAction(rowIndex){
+  if(!confirm('यो परिवर्तन लागु गर्ने हो?'))return;
+  try{
+    await fetch(S.scriptUrl,{method:'POST',body:JSON.stringify({action:'approvePendingAction',rowIndex,approverName:S.currentAdmin?.name||'Master'})});
+    alert('✅ Approved and applied.');loadPendingApprovals();
+  }catch(e){alert('❌ Failed.');}
+}
+async function rejectPendingAction(rowIndex){
+  if(!confirm('यो request अस्वीकार गर्ने हो?'))return;
+  try{
+    await fetch(S.scriptUrl,{method:'POST',body:JSON.stringify({action:'rejectPendingAction',rowIndex,approverName:S.currentAdmin?.name||'Master'})});
+    alert('❌ Rejected.');loadPendingApprovals();
+  }catch(e){alert('❌ Failed.');}
+}
+
+// ── TOOLS TAB: Understaffing Gap Detector ──
+function runGapDetector(){
+  const el=document.getElementById('gap-detector-result');
+  el.innerHTML='<div style="color:var(--text3);font-size:12px;margin-top:8px">⏳ Checking...</div>';
+  const c=getCurrentBsMonth();const bsY=c.bsY,bsM=c.bsM;
+  const bsDays=bsMonthDays(bsY,bsM);
+  const gaps=[];
+  const roleGroups=[
+    {role:'sdm',label:'Sr. Div. Met.',icon:'⭐'},
+    {role:'forecaster',label:'Forecaster',icon:'🌤️'},
+    {role:'observer',label:'Observer',icon:'🔭'}
+  ];
+  for(let bsD=1;bsD<=bsDays;bsD++){
+    const iso=bsToAd(bsY,bsM,bsD);
+    for(const sec of['avia','weather']){
+      for(const g of roleGroups){
+        const names=S.staff[sec]?.[g.role]||[];
+        if(!names.length)continue; // no staff defined for this role at all — not a "gap", it's an org-chart issue
+        let anyOnDuty=false;
+        for(const name of names){
+          const shift=getDuty(iso,name,g.role);
+          if(shift!==null&&!isOff(shift)){anyOnDuty=true;break;}
+        }
+        if(!anyOnDuty)gaps.push({iso,bsD,sec,role:g.role,label:g.label,icon:g.icon});
+      }
+    }
+  }
+  if(!gaps.length){el.innerHTML='<div style="color:var(--green);font-size:13px;margin-top:8px">✅ यो महिना कुनै gap भेटिएन — सबै role मा हरेक दिन कोही न कोही duty मा छ।</div>';return;}
+  el.innerHTML='<div style="color:var(--red);font-size:12px;margin:8px 0;font-weight:700">'+gaps.length+' gap(s) भेटियो:</div>'+
+    gaps.map(g=>`<div style="background:var(--bg3);border-radius:8px;padding:8px 10px;margin-bottom:5px;border-left:3px solid var(--red);font-size:12px">
+      <b>${toNpNum(g.bsD)}</b> — ${g.icon} ${g.label} (${SEC_LABEL[g.sec]||g.sec}) मा कोही duty मा छैन
+    </div>`).join('');
+}
+
+// ── TOOLS TAB: Multi-month Workload Report + Excel Export ──
+let _toolsMonthFiles=[];
+async function loadMonthFilesForReport(){
+  const picker=document.getElementById('workload-months-picker');
+  const expPicker=document.getElementById('export-months-picker');
+  if(picker)picker.innerHTML='<div style="color:var(--text3);font-size:12px">⏳ Loading months...</div>';
+  try{
+    const res=await fetch(S.scriptUrl+'?action=getMonthFiles');
+    const d=await res.json();
+    _toolsMonthFiles=(d.data||[]).sort((a,b)=>a.name.localeCompare(b.name));
+    if(picker){
+      picker.innerHTML=_toolsMonthFiles.map(f=>`
+        <label style="display:flex;align-items:center;gap:5px;background:var(--bg3);padding:6px 10px;border-radius:8px;font-size:12px;cursor:pointer">
+          <input type="checkbox" class="wl-month-chk" value="${f.fileId}"/> ${f.name}
+        </label>`).join('')||'<div style="color:var(--text3);font-size:12px">कुनै monthly file भेटिएन।</div>';
+    }
+    if(expPicker){
+      expPicker.innerHTML=_toolsMonthFiles.map(f=>`
+        <button class="btn-outline" onclick="exportMonthExcel('${f.fileId}','${f.name}')" style="padding:6px 12px;font-size:12px">📥 ${f.name}</button>`).join('')||'<div style="color:var(--text3);font-size:12px">कुनै monthly file भेटिएन।</div>';
+    }
+  }catch(e){if(picker)picker.innerHTML='<div style="color:var(--red);font-size:12px">Load failed.</div>';}
+}
+async function runWorkloadReport(){
+  const el=document.getElementById('workload-report-result');
+  const checked=[...document.querySelectorAll('.wl-month-chk:checked')].map(c=>c.value);
+  if(!checked.length){alert('कम्तिमा एउटा महिना छान्नुहोस्।');return;}
+  el.innerHTML='<div style="color:var(--text3);font-size:12px;margin-top:8px">⏳ Generating report...</div>';
+  try{
+    const res=await fetch(S.scriptUrl+'?action=getWorkloadReport&fileIds='+checked.join(','));
+    const d=await res.json();
+    const rows=(d.data||[]).sort((a,b)=>b.dutyDays-a.dutyDays);
+    if(!rows.length){el.innerHTML='<div style="color:var(--text3);font-size:12px;margin-top:8px">कुनै data भेटिएन (SUMMARY tab खाली हुन सक्छ)।</div>';return;}
+    el.innerHTML=`<div style="overflow-x:auto;margin-top:10px"><table style="width:100%;border-collapse:collapse;font-size:12px">
+      <thead><tr style="background:var(--bg3)">
+        <th style="padding:6px;text-align:left;border-bottom:1px solid var(--border)">Name</th>
+        <th style="padding:6px;border-bottom:1px solid var(--border)">Role</th>
+        <th style="padding:6px;border-bottom:1px solid var(--border)">Section</th>
+        <th style="padding:6px;border-bottom:1px solid var(--border)">Duty Days</th>
+        <th style="padding:6px;border-bottom:1px solid var(--border)">Leave Days</th>
+        <th style="padding:6px;border-bottom:1px solid var(--border)">Months</th>
+      </tr></thead><tbody>
+      ${rows.map(r=>`<tr>
+        <td style="padding:6px;border-bottom:1px solid var(--border)">${r.name}</td>
+        <td style="padding:6px;text-align:center;border-bottom:1px solid var(--border)">${RLABEL[r.role]||r.role}</td>
+        <td style="padding:6px;text-align:center;border-bottom:1px solid var(--border)">${SEC_LABEL[r.section]||r.section}</td>
+        <td style="padding:6px;text-align:center;border-bottom:1px solid var(--border);color:var(--accent);font-weight:700">${r.dutyDays}</td>
+        <td style="padding:6px;text-align:center;border-bottom:1px solid var(--border);color:var(--yellow)">${r.leaveDays}</td>
+        <td style="padding:6px;text-align:center;border-bottom:1px solid var(--border)">${r.monthsCounted}</td>
+      </tr>`).join('')}
+      </tbody></table></div>`;
+  }catch(e){el.innerHTML='<div style="color:var(--red);font-size:12px;margin-top:8px">Report generation failed.</div>';}
+}
+async function exportMonthExcel(fileId,name){
+  try{
+    const res=await fetch(S.scriptUrl+'?action=getExportUrl&fileId='+fileId);
+    const d=await res.json();
+    if(d.url)window.open(d.url,'_blank');
+    else alert('❌ Export link तयार गर्न सकिएन।');
+  }catch(e){alert('❌ Export failed. Check connection.');}
+}
+
+
 function registerSW(){
   if('serviceWorker'in navigator){
     navigator.serviceWorker.register('sw.js').then(reg=>{
