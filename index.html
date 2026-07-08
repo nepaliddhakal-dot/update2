@@ -693,6 +693,7 @@ textarea.fi{resize:vertical;min-height:80px}
           <button class="nav-arrow" onclick="adminFrNext()">›</button>
         </div>
         <div class="roster-controls" style="padding:8px 14px;flex-shrink:0">
+          <div class="fr-sec-tabs" id="afr-sec-tabs"></div>
           <div class="zoom-wrap">
             <button class="zoom-btn" onclick="adminFrZoomOut()">−</button>
             <span class="zoom-label" id="afr-zoom-lbl">100%</span>
@@ -700,6 +701,7 @@ textarea.fi{resize:vertical;min-height:80px}
           </div>
           <button class="btn-outline" onclick="adminFrGoToday()" style="padding:5px 12px;font-size:12px">📅 Today</button>
           <button class="btn-outline" onclick="adminFrGoLegend()" style="padding:5px 12px;font-size:12px">📋 Legend</button>
+          <button class="btn-outline" onclick="adminFrPrintRoster()" style="padding:5px 12px;font-size:12px">🖨️ Print</button>
         </div>
         <div style="overflow:auto;flex:1;position:relative">
           <div id="afr-scale" style="transform-origin:top left;display:inline-block;min-width:100%">
@@ -1508,25 +1510,48 @@ td.c-none{color:#bbb}
   setTimeout(()=>URL.revokeObjectURL(url),30000);
 }
 // ── ADMIN FULL ROSTER ──
-let afrZoom=1,afrBsYear=2083,afrBsMonth=0;
+let afrZoom=1,afrBsYear=2083,afrBsMonth=0,afrSection='all',afrSectionInit=false;
 function adminFrZoomIn(){afrZoom=Math.min(2,+(afrZoom+0.1).toFixed(1));document.getElementById('afr-scale').style.transform=`scale(${afrZoom})`;document.getElementById('afr-zoom-lbl').textContent=Math.round(afrZoom*100)+'%';}
 function adminFrZoomOut(){afrZoom=Math.max(0.4,+(afrZoom-0.1).toFixed(1));document.getElementById('afr-scale').style.transform=`scale(${afrZoom})`;document.getElementById('afr-zoom-lbl').textContent=Math.round(afrZoom*100)+'%';}
 function adminFrPrev(){afrBsMonth--;if(afrBsMonth<0){afrBsMonth=11;afrBsYear--;}renderAdminFullRoster();}
 function adminFrNext(){afrBsMonth++;if(afrBsMonth>11){afrBsMonth=0;afrBsYear++;}renderAdminFullRoster();}
 function adminFrGoToday(){const c=getCurrentBsMonth();afrBsYear=c.bsY;afrBsMonth=c.bsM;renderAdminFullRoster();setTimeout(()=>{const el=document.querySelector('#afr-table .today-row');if(el)el.scrollIntoView({block:'center',behavior:'smooth'});},200);}
 function adminFrGoLegend(){const el=document.getElementById('afr-legend');if(el)el.scrollIntoView({behavior:'smooth',block:'start'});}
+function adminFrSetSection(sec,el){
+  afrSection=sec;
+  document.querySelectorAll('#afr-sec-tabs .fr-sec-tab').forEach(t=>t.classList.remove('active'));
+  if(el)el.classList.add('active');
+  renderAdminFullRoster();
+}
+function renderAfrSecTabs(){
+  const own=S.user&&S.user.section==='weather'?'weather':'avia';
+  const other=own==='avia'?'weather':'avia';
+  if(!afrSectionInit){afrSection=own;afrSectionInit=true;}
+  const defs={
+    avia:{icon:'✈️',label:'TIA Aviation Met'},
+    weather:{icon:'🌦️',label:'Weather Forecasting'},
+    all:{icon:'👥',label:'Full Staff'}
+  };
+  const order=[own,other,'all'];
+  const el=document.getElementById('afr-sec-tabs');
+  if(!el)return;
+  el.innerHTML=order.map(sec=>`<div class="fr-sec-tab${afrSection===sec?' active':''}" data-sec="${sec}" onclick="adminFrSetSection('${sec}',this)"><span class="ti">${defs[sec].icon}</span>${defs[sec].label}</div>`).join('');
+}
 function renderAdminFullRoster(){
+  renderAfrSecTabs();
   const bsY=afrBsYear,bsM=afrBsMonth;
   const{np,en}=buildBsHeader(bsY,bsM);
-  document.getElementById('afr-title').textContent=np+' ('+en+')';
+  const secSuffix=afrSection==='avia'?' — ✈️ TIA Aviation Met':afrSection==='weather'?' — 🌦️ Weather Forecasting':' — 👥 Full Staff';
+  document.getElementById('afr-title').textContent=np+' ('+en+')'+secSuffix;
   const bsDays=bsMonthDays(bsY,bsM);const today=todayISO();
+  const secList=afrSection==='all'?['avia','weather']:[afrSection];
   const seen=new Set();
   const sdmList=[],foreList=[],obsList=[];
-  for(const sec of['avia','weather']){for(const n of(S.staff[sec]?.sdm||[])){if(!seen.has(n)){seen.add(n);sdmList.push(n);}}}
-  for(const sec of['avia','weather']){for(const n of(S.staff[sec]?.forecaster||[])){if(!seen.has(n)){seen.add(n);foreList.push(n);}}}
-  for(const sec of['avia','weather']){for(const n of(S.staff[sec]?.observer||[])){if(!seen.has(n)){seen.add(n);obsList.push(n);}}}
+  for(const sec of secList){for(const n of(S.staff[sec]?.sdm||[])){if(!seen.has(n)){seen.add(n);sdmList.push(n);}}}
+  for(const sec of secList){for(const n of(S.staff[sec]?.forecaster||[])){if(!seen.has(n)){seen.add(n);foreList.push(n);}}}
+  for(const sec of secList){for(const n of(S.staff[sec]?.observer||[])){if(!seen.has(n)){seen.add(n);obsList.push(n);}}}
   const allStaff=[...sdmList.map(n=>({name:n,role:'sdm'})),...foreList.map(n=>({name:n,role:'forecaster'})),...obsList.map(n=>({name:n,role:'observer'}))];
-  if(!allStaff.length){document.getElementById('afr-table').innerHTML='<div style="padding:20px;color:var(--text3)">No staff found.</div>';return;}
+  if(!allStaff.length){document.getElementById('afr-table').innerHTML='<div style="padding:20px;color:var(--text3)">No staff found for this section.</div>';return;}
   let h1=`<th class="date-col-hdr" rowspan="2" style="position:sticky;top:0;left:0;z-index:6">📅 Date</th>`;
   if(sdmList.length)h1+=`<th class="sec-span-hdr sdm-hdr" colspan="${sdmList.length}" style="position:sticky;top:0">⭐ Sr. Div. Met. (${sdmList.length})</th>`;
   if(foreList.length)h1+=`<th class="sec-span-hdr fore-hdr" colspan="${foreList.length}" style="position:sticky;top:0">🌤️ Forecaster (${foreList.length})</th>`;
@@ -1573,6 +1598,86 @@ function renderAdminFullRoster(){
     </table>
   </div>`;
   setTimeout(()=>{const el=document.querySelector('#afr-table .today-row');if(el)el.scrollIntoView({block:'center',behavior:'smooth'});},150);
+}
+function adminFrPrintRoster(){
+  const bsY=afrBsYear,bsM=afrBsMonth;
+  const{np,en}=buildBsHeader(bsY,bsM);
+  const bsDays=bsMonthDays(bsY,bsM);const today=todayISO();
+  const secList=afrSection==='all'?['avia','weather']:[afrSection];
+  const secTitle=afrSection==='avia'?'✈️ TIA Aviation Met Section':afrSection==='weather'?'🌦️ Weather Forecasting Section':'👥 Full Staff (All Sections)';
+
+  const seen=new Set();
+  const sdmList=[],foreList=[],obsList=[];
+  for(const sec of secList){for(const n of(S.staff[sec]?.sdm||[])){if(!seen.has(n)){seen.add(n);sdmList.push(n);}}}
+  for(const sec of secList){for(const n of(S.staff[sec]?.forecaster||[])){if(!seen.has(n)){seen.add(n);foreList.push(n);}}}
+  for(const sec of secList){for(const n of(S.staff[sec]?.observer||[])){if(!seen.has(n)){seen.add(n);obsList.push(n);}}}
+  const allStaff=[
+    ...sdmList.map(n=>({name:n,role:'sdm'})),
+    ...foreList.map(n=>({name:n,role:'forecaster'})),
+    ...obsList.map(n=>({name:n,role:'observer'}))
+  ];
+  if(!allStaff.length){alert('No staff found for this section.');return;}
+
+  const n=allStaff.length;
+  const fs=n>16?'6px':n>12?'6.5px':n>8?'7.5px':'9px';
+  const padY=n>12?'2px':'3px';
+
+  let h1=`<th rowspan="2" class="dc-h">Date</th>`;
+  if(sdmList.length)h1+=`<th colspan="${sdmList.length}" class="grp grp-sdm">⭐ Sr. Div. Met. (${sdmList.length})</th>`;
+  if(foreList.length)h1+=`<th colspan="${foreList.length}" class="grp grp-fore">🌤️ Forecaster (${foreList.length})</th>`;
+  if(obsList.length)h1+=`<th colspan="${obsList.length}" class="grp grp-obs">🔭 Observer (${obsList.length})</th>`;
+  let h2='';
+  for(const{name}of allStaff)h2+=`<th>${name}</th>`;
+
+  let tbody='';
+  for(let bsD=1;bsD<=bsDays;bsD++){
+    const iso=bsToAd(bsY,bsM,bsD);
+    const isT=iso===today;const dt=new Date(iso);
+    const[,m,d]=iso.split('-').map(Number);
+    let tr=`<td class="dc">${toNpNum(bsD)} ${DAYS_NP[dt.getDay()]} ${d}/${m}</td>`;
+    for(const{name,role}of allStaff){
+      let shift=getDuty(iso,name,role);
+      if(shift===null){const f=getDutyAny(iso,name);if(f)shift=f.shift;}
+      let cls='c-on',txt=shift;
+      if(shift===null){cls='c-none';txt='?';}
+      else if(isOff(shift)){cls='c-off';txt='Off';}
+      else if(String(shift).includes('*')){cls='c-star';}
+      tr+=`<td class="${cls}">${txt}</td>`;
+    }
+    tbody+=`<tr class="${isT?'tr-today':''}">${tr}</tr>`;
+  }
+
+  const html=`<!DOCTYPE html><html><head><meta charset="UTF-8"/><title>MFD Roster - ${secTitle}</title>
+<style>
+@page{size:A4 landscape;margin:6mm}
+*{box-sizing:border-box}
+body{font-family:Arial,Helvetica,sans-serif;margin:0;color:#111}
+h1{font-size:15px;margin:0 0 2px;color:#0f2942}
+.meta{font-size:10px;color:#444;margin-bottom:6px}
+table{border-collapse:collapse;width:100%;table-layout:fixed}
+th,td{border:1px solid #888;padding:${padY} 3px;text-align:center;font-size:${fs};overflow:hidden;white-space:nowrap}
+th{background:#0f2942;color:#fff;font-weight:700}
+th.grp-sdm{background:#7c3aed}
+th.grp-fore{background:#0284c7}
+th.grp-obs{background:#059669}
+td.dc,th.dc-h{font-weight:700;background:#eef3f8;white-space:nowrap}
+tr.tr-today td{background:#dbeeff!important}
+td.c-off{color:#999}
+td.c-star{color:#7c3aed;font-weight:700}
+td.c-none{color:#bbb}
+@media print{button{display:none}}
+</style>
+</head><body>
+<h1>📋 MFD Duty Roster (Admin) — ${secTitle}</h1>
+<div class="meta"><b>Month:</b> ${np} (${en}) &nbsp;|&nbsp; <b>Total Staff:</b> ${allStaff.length} &nbsp;|&nbsp; <b>Generated:</b> ${new Date().toLocaleString()}</div>
+<table><thead><tr>${h1}</tr><tr>${h2}</tr></thead><tbody>${tbody}</tbody></table>
+<script>window.onload=()=>setTimeout(()=>window.print(),150);<\/script>
+</body></html>`;
+
+  const blob=new Blob([html],{type:'text/html'});
+  const url=URL.createObjectURL(blob);
+  window.open(url,'_blank');
+  setTimeout(()=>URL.revokeObjectURL(url),30000);
 }
 function renderFrSecTabs(){
   if(!S.user)return;
