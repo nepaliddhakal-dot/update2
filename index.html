@@ -178,9 +178,8 @@ input,select,textarea{font-family:'Inter',sans-serif}
 .cc-sh{font-size:7px;font-weight:700;white-space:nowrap;line-height:1.5;flex-shrink:0}
 .cc-more{font-size:7px;color:var(--text3);padding:1px 2px;grid-column:span 2}
 .cn-obs{color:#34d399}.cn-fore{color:#38bdf8}.cn-sdm{color:#a78bfa}
-.fr-sec-tabs{display:flex;gap:6px;padding:8px 12px;border-bottom:1px solid var(--border);flex-shrink:0;overflow-x:auto;scrollbar-width:none}
-.fr-sec-tabs::-webkit-scrollbar{display:none}
-.fr-sec-tab{display:flex;align-items:center;gap:5px;padding:7px 12px;border-radius:100px;font-size:11px;font-weight:600;color:var(--text2);background:var(--card2);border:1px solid var(--border);white-space:nowrap;cursor:pointer;transition:all .2s;flex-shrink:0}
+.fr-sec-tabs{display:flex;gap:6px;flex-wrap:wrap}
+.fr-sec-tab{display:flex;align-items:center;gap:5px;padding:6px 12px;border-radius:100px;font-size:11px;font-weight:600;color:var(--text2);background:var(--card2);border:1px solid var(--border);white-space:nowrap;cursor:pointer;transition:all .2s;flex-shrink:0}
 .fr-sec-tab .ti{font-size:13px}
 .fr-sec-tab:active{transform:scale(.96)}
 .fr-sec-tab.active[data-sec="all"]{background:var(--accent-dim);border-color:var(--accent);color:var(--accent)}
@@ -464,17 +463,13 @@ textarea.fi{resize:vertical;min-height:80px}
     </div>
     <!-- FULL ROSTER — all roles + both sections, deduplicated, SDM→Fore→Obs -->
     <div class="tab-panel" id="tab-fullroster">
-      <div class="fr-sec-tabs">
-        <div class="fr-sec-tab active" data-sec="all" onclick="frSetSection('all',this)"><span class="ti">👥</span>Full Staff</div>
-        <div class="fr-sec-tab" data-sec="avia" onclick="frSetSection('avia',this)"><span class="ti">✈️</span>TIA Aviation Met</div>
-        <div class="fr-sec-tab" data-sec="weather" onclick="frSetSection('weather',this)"><span class="ti">🌦️</span>Weather Forecasting</div>
-      </div>
       <div class="roster-nav">
         <button class="nav-arrow" onclick="frPrev()">‹</button>
         <div class="roster-nav-title" id="fr-title">--</div>
         <button class="nav-arrow" onclick="frNext()">›</button>
       </div>
       <div class="roster-controls">
+        <div class="fr-sec-tabs" id="fr-sec-tabs"></div>
         <div class="zoom-wrap">
           <button class="zoom-btn" onclick="frZoomOut()">−</button>
           <span class="zoom-label" id="fr-zoom-lbl">100%</span>
@@ -482,6 +477,7 @@ textarea.fi{resize:vertical;min-height:80px}
         </div>
         <button class="btn-outline" onclick="frGoToday()" style="padding:5px 12px;font-size:12px">📅 Today</button>
         <button class="btn-outline" onclick="frGoLegend()" style="padding:5px 12px;font-size:12px">📋 Duty Legend</button>
+        <button class="btn-outline" onclick="frPrintRoster()" style="padding:5px 12px;font-size:12px">🖨️ Print</button>
       </div>
       <div class="roster-outer" id="fr-outer">
         <div class="roster-scale-wrap" id="fr-scale"><div id="fr-table"></div></div>
@@ -811,7 +807,7 @@ const S={
   staff:{avia:{observer:[],forecaster:[],sdm:[]},weather:{observer:[],forecaster:[],sdm:[]}},
   scriptUrl:'',adminCreds:{username:'',pin:''},subAdmins:[],currentAdmin:null,
   calBsYear:2083,calBsMonth:2,mdBsYear:2083,mdBsMonth:2,
-  frBsYear:2083,frBsMonth:2,frZoom:1,frSection:'all',
+  frBsYear:2083,frBsMonth:2,frZoom:1,frSection:'all',frSectionInit:false,
   fcmToken:null,manualDays:[],staffSecTab:'avia',
   assignPendingName:'',assignPendingRole:''
 };
@@ -1430,6 +1426,87 @@ function frZoomOut(){S.frZoom=Math.max(0.4,+(S.frZoom-0.1).toFixed(1));applyZoom
 function applyZoom(){document.getElementById('fr-scale').style.transform=`scale(${S.frZoom})`;document.getElementById('fr-zoom-lbl').textContent=Math.round(S.frZoom*100)+'%';}
 function frGoToday(){const c=getCurrentBsMonth();S.frBsYear=c.bsY;S.frBsMonth=c.bsM;renderFullRoster();setTimeout(()=>{const el=document.querySelector('#fr-table .today-row');if(el)el.scrollIntoView({block:'center',behavior:'smooth'});},200);}
 function frGoLegend(){const el=document.getElementById('fr-legend');if(el)el.scrollIntoView({behavior:'smooth',block:'start'});}
+function frPrintRoster(){
+  const bsY=S.frBsYear,bsM=S.frBsMonth;
+  const{np,en}=buildBsHeader(bsY,bsM);
+  const bsDays=bsMonthDays(bsY,bsM);const today=todayISO();
+  const secList=S.frSection==='all'?['avia','weather']:[S.frSection];
+  const secTitle=S.frSection==='avia'?'✈️ TIA Aviation Met Section':S.frSection==='weather'?'🌦️ Weather Forecasting Section':'👥 Full Staff (All Sections)';
+
+  const seen=new Set();
+  const sdmList=[],foreList=[],obsList=[];
+  for(const sec of secList){for(const n of(S.staff[sec]?.sdm||[])){if(!seen.has(n)){seen.add(n);sdmList.push(n);}}}
+  for(const sec of secList){for(const n of(S.staff[sec]?.forecaster||[])){if(!seen.has(n)){seen.add(n);foreList.push(n);}}}
+  for(const sec of secList){for(const n of(S.staff[sec]?.observer||[])){if(!seen.has(n)){seen.add(n);obsList.push(n);}}}
+  const allStaff=[
+    ...sdmList.map(n=>({name:n,role:'sdm'})),
+    ...foreList.map(n=>({name:n,role:'forecaster'})),
+    ...obsList.map(n=>({name:n,role:'observer'}))
+  ];
+  if(!allStaff.length){alert('No staff found for this section.');return;}
+
+  // Shrink font as staff count grows, so a full month still fits one landscape page
+  const n=allStaff.length;
+  const fs=n>16?'6px':n>12?'6.5px':n>8?'7.5px':'9px';
+  const padY=n>12?'2px':'3px';
+
+  let h1=`<th rowspan="2" class="dc-h">Date</th>`;
+  if(sdmList.length)h1+=`<th colspan="${sdmList.length}" class="grp grp-sdm">⭐ Sr. Div. Met. (${sdmList.length})</th>`;
+  if(foreList.length)h1+=`<th colspan="${foreList.length}" class="grp grp-fore">🌤️ Forecaster (${foreList.length})</th>`;
+  if(obsList.length)h1+=`<th colspan="${obsList.length}" class="grp grp-obs">🔭 Observer (${obsList.length})</th>`;
+  let h2='';
+  for(const{name}of allStaff)h2+=`<th>${name}</th>`;
+
+  let tbody='';
+  for(let bsD=1;bsD<=bsDays;bsD++){
+    const iso=bsToAd(bsY,bsM,bsD);
+    const isT=iso===today;const dt=new Date(iso);
+    const[,m,d]=iso.split('-').map(Number);
+    let tr=`<td class="dc">${toNpNum(bsD)} ${DAYS_NP[dt.getDay()]} ${d}/${m}</td>`;
+    for(const{name,role}of allStaff){
+      let shift=getDuty(iso,name,role);
+      if(shift===null){const f=getDutyAny(iso,name);if(f)shift=f.shift;}
+      let cls='c-on',txt=shift;
+      if(shift===null){cls='c-none';txt='?';}
+      else if(isOff(shift)){cls='c-off';txt='Off';}
+      else if(String(shift).includes('*')){cls='c-star';}
+      tr+=`<td class="${cls}">${txt}</td>`;
+    }
+    tbody+=`<tr class="${isT?'tr-today':''}">${tr}</tr>`;
+  }
+
+  const html=`<!DOCTYPE html><html><head><meta charset="UTF-8"/><title>MFD Roster - ${secTitle}</title>
+<style>
+@page{size:A4 landscape;margin:6mm}
+*{box-sizing:border-box}
+body{font-family:Arial,Helvetica,sans-serif;margin:0;color:#111}
+h1{font-size:15px;margin:0 0 2px;color:#0f2942}
+.meta{font-size:10px;color:#444;margin-bottom:6px}
+table{border-collapse:collapse;width:100%;table-layout:fixed}
+th,td{border:1px solid #888;padding:${padY} 3px;text-align:center;font-size:${fs};overflow:hidden;white-space:nowrap}
+th{background:#0f2942;color:#fff;font-weight:700}
+th.grp-sdm{background:#7c3aed}
+th.grp-fore{background:#0284c7}
+th.grp-obs{background:#059669}
+td.dc,th.dc-h{font-weight:700;background:#eef3f8;white-space:nowrap}
+tr.tr-today td{background:#dbeeff!important}
+td.c-off{color:#999}
+td.c-star{color:#7c3aed;font-weight:700}
+td.c-none{color:#bbb}
+@media print{button{display:none}}
+</style>
+</head><body>
+<h1>📋 MFD Duty Roster — ${secTitle}</h1>
+<div class="meta"><b>Month:</b> ${np} (${en}) &nbsp;|&nbsp; <b>Total Staff:</b> ${allStaff.length} &nbsp;|&nbsp; <b>Generated:</b> ${new Date().toLocaleString()}</div>
+<table><thead><tr>${h1}</tr><tr>${h2}</tr></thead><tbody>${tbody}</tbody></table>
+<script>window.onload=()=>setTimeout(()=>window.print(),150);<\/script>
+</body></html>`;
+
+  const blob=new Blob([html],{type:'text/html'});
+  const url=URL.createObjectURL(blob);
+  window.open(url,'_blank');
+  setTimeout(()=>URL.revokeObjectURL(url),30000);
+}
 // ── ADMIN FULL ROSTER ──
 let afrZoom=1,afrBsYear=2083,afrBsMonth=0;
 function adminFrZoomIn(){afrZoom=Math.min(2,+(afrZoom+0.1).toFixed(1));document.getElementById('afr-scale').style.transform=`scale(${afrZoom})`;document.getElementById('afr-zoom-lbl').textContent=Math.round(afrZoom*100)+'%';}
@@ -1497,6 +1574,21 @@ function renderAdminFullRoster(){
   </div>`;
   setTimeout(()=>{const el=document.querySelector('#afr-table .today-row');if(el)el.scrollIntoView({block:'center',behavior:'smooth'});},150);
 }
+function renderFrSecTabs(){
+  if(!S.user)return;
+  const own=S.user.section==='weather'?'weather':'avia';
+  const other=own==='avia'?'weather':'avia';
+  if(!S.frSectionInit){S.frSection=own;S.frSectionInit=true;}
+  const defs={
+    avia:{icon:'✈️',label:'TIA Aviation Met'},
+    weather:{icon:'🌦️',label:'Weather Forecasting'},
+    all:{icon:'👥',label:'Full Staff'}
+  };
+  const order=[own,other,'all'];
+  const el=document.getElementById('fr-sec-tabs');
+  if(!el)return;
+  el.innerHTML=order.map(sec=>`<div class="fr-sec-tab${S.frSection===sec?' active':''}" data-sec="${sec}" onclick="frSetSection('${sec}',this)"><span class="ti">${defs[sec].icon}</span>${defs[sec].label}</div>`).join('');
+}
 function frSetSection(sec,el){
   S.frSection=sec;
   document.querySelectorAll('.fr-sec-tab').forEach(t=>t.classList.remove('active'));
@@ -1505,6 +1597,7 @@ function frSetSection(sec,el){
 }
 function renderFullRoster(){
   if(!document.getElementById('tab-fullroster').classList.contains('active'))return;
+  renderFrSecTabs();
   const bsY=S.frBsYear,bsM=S.frBsMonth;
   const{np,en}=buildBsHeader(bsY,bsM);
   const secSuffix=S.frSection==='avia'?' — ✈️ TIA Aviation Met':S.frSection==='weather'?' — 🌦️ Weather Forecasting':' — 👥 Full Staff';
