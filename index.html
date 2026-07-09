@@ -930,6 +930,12 @@ function shiftBadgeStyle(shift){
   if(!st)return'';
   return`background:${st.bg};border:1px solid ${st.border};color:${st.text}`;
 }
+const BIDA_LABELS_GLOBAL={
+  'BIDA-BHP':'भैपरी आउने बिदा','BIDA-PRB':'पर्व बिदा','BIDA-GHR':'घर बिदा',
+  'BIDA-BIR':'बिरामी बिदा','BIDA-PRS':'प्रसूति बिदा','BIDA-PSY':'प्रसूति स्याहार बिदा',
+  'BIDA-KIR':'किरिया बिदा','BIDA-ADH':'अध्ययन बिदा','BIDA-ASA':'असाधारण बिदा',
+  'BIDA-SAT':'सट्टा बिदा','SAT':'सट्टा बिदा','XX':'बिदा/Off','xx':'बिदा/Off'
+};
 const DUTY_NAMES={
   'AFN*':'Day Night Forecaster★','NMF*':'Night Morning Forecaster★',
   'MF':'Morning Forecaster','AF':'Afternoon Forecaster',
@@ -1502,7 +1508,7 @@ async function showMyYearSummary(){
   const modal=document.getElementById('day-modal')||document.body;
   const box=document.createElement('div');
   box.style.cssText='position:fixed;inset:0;z-index:9999;background:rgba(0,0,0,.6);display:flex;align-items:center;justify-content:center;padding:16px';
-  box.innerHTML=`<div style="background:var(--card);border-radius:var(--radius);padding:20px;max-width:400px;width:100%;max-height:80vh;overflow-y:auto">
+  box.innerHTML=`<div style="background:var(--card);border-radius:var(--radius);padding:20px;max-width:420px;width:100%;max-height:85vh;overflow-y:auto">
     <div style="font-size:15px;font-weight:700;margin-bottom:10px">📊 ${S.user.name} — Year-to-Date</div>
     <div id="year-summary-body" style="font-size:13px;color:var(--text2)">⏳ Loading...</div>
     <button onclick="this.closest('div[style*=fixed]').remove()" style="margin-top:14px;width:100%;padding:10px;background:var(--card2);border:1px solid var(--border2);border-radius:8px;color:var(--text);font-size:13px;cursor:pointer">Close</button>
@@ -1518,12 +1524,45 @@ async function showMyYearSummary(){
     const mine=(d.data||[]).find(r=>r.name===S.user.name);
     const body=document.getElementById('year-summary-body');
     if(!mine){body.innerHTML='No data found yet for you across saved months.';return;}
-    body.innerHTML=`
+
+    // ── Overall totals ──
+    let html=`
       <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:6px">
         <div class="summary-item"><div class="si-shift-label">कुल Duty दिन</div><div class="si-count duty">${mine.dutyDays}<span style="font-size:12px;font-weight:400"> दिन</span></div></div>
         <div class="summary-item"><div class="si-shift-label">कुल बिदा दिन</div><div class="si-count offc">${mine.leaveDays}<span style="font-size:12px;font-weight:400"> दिन</span></div></div>
       </div>
-      <div style="margin-top:10px;font-size:11px;color:var(--text3)">${mine.monthsCounted} महिनाको saved data आधारमा गणना गरिएको।</div>`;
+      <div style="margin-top:6px;font-size:11px;color:var(--text3)">${mine.monthsCounted} महिनाको saved data आधारमा गणना गरिएको।</div>`;
+
+    // ── Leave-type breakdown ──
+    const leaveEntries=Object.entries(mine.leaveBreakdown||{}).filter(([k,v])=>v>0).sort((a,b)=>b[1]-a[1]);
+    if(leaveEntries.length){
+      html+=`<div style="margin-top:16px;font-size:12px;font-weight:700;color:var(--text2)">🏖️ बिदा प्रकार अनुसार</div>
+        <div style="display:flex;flex-direction:column;gap:6px;margin-top:8px">
+        ${leaveEntries.map(([k,v])=>`
+          <div style="display:flex;justify-content:space-between;align-items:center;background:var(--bg3);border-radius:8px;padding:8px 12px">
+            <span style="font-size:12px">${BIDA_LABELS_GLOBAL[k]||k}</span>
+            <span style="font-size:13px;font-weight:700;color:var(--yellow)">${v} दिन</span>
+          </div>`).join('')}
+        </div>`;
+    }
+
+    // ── Month-wise breakdown ──
+    const months=(mine.perMonth||[]).sort((a,b)=>a.month.localeCompare(b.month));
+    if(months.length){
+      html+=`<div style="margin-top:16px;font-size:12px;font-weight:700;color:var(--text2)">📅 महिना अनुसार</div>
+        <div style="display:flex;flex-direction:column;gap:6px;margin-top:8px">
+        ${months.map(m=>`
+          <div style="background:var(--bg3);border-radius:8px;padding:8px 12px">
+            <div style="display:flex;justify-content:space-between;align-items:center">
+              <span style="font-size:12px;font-weight:600">${m.month.replace(/_/g,' ')}</span>
+              <span style="font-size:11px;color:var(--text3)">Duty: <b style="color:var(--accent)">${m.dutyDays}</b> · बिदा: <b style="color:var(--yellow)">${m.leaveDays}</b></span>
+            </div>
+            ${Object.keys(m.leaveBreakdown||{}).length?`<div style="font-size:10px;color:var(--text3);margin-top:4px">${Object.entries(m.leaveBreakdown).map(([k,v])=>(BIDA_LABELS_GLOBAL[k]||k)+' '+v).join(' · ')}</div>`:''}
+          </div>`).join('')}
+        </div>`;
+    }
+
+    body.innerHTML=html;
   }catch(e){document.getElementById('year-summary-body').innerHTML='<span style="color:var(--red)">Load failed. Check connection.</span>';}
 }
 
@@ -3467,16 +3506,20 @@ async function runWorkloadReport(){
         <th style="padding:6px;border-bottom:1px solid var(--border)">Section</th>
         <th style="padding:6px;border-bottom:1px solid var(--border)">Duty Days</th>
         <th style="padding:6px;border-bottom:1px solid var(--border)">Leave Days</th>
+        <th style="padding:6px;border-bottom:1px solid var(--border)">Leave Breakdown</th>
         <th style="padding:6px;border-bottom:1px solid var(--border)">Months</th>
       </tr></thead><tbody>
-      ${rows.map(r=>`<tr>
+      ${rows.map(r=>{
+        const lb=Object.entries(r.leaveBreakdown||{}).filter(([k,v])=>v>0);
+        return`<tr>
         <td style="padding:6px;border-bottom:1px solid var(--border)">${r.name}</td>
         <td style="padding:6px;text-align:center;border-bottom:1px solid var(--border)">${RLABEL[r.role]||r.role}</td>
         <td style="padding:6px;text-align:center;border-bottom:1px solid var(--border)">${SEC_LABEL[r.section]||r.section}</td>
         <td style="padding:6px;text-align:center;border-bottom:1px solid var(--border);color:var(--accent);font-weight:700">${r.dutyDays}</td>
         <td style="padding:6px;text-align:center;border-bottom:1px solid var(--border);color:var(--yellow)">${r.leaveDays}</td>
+        <td style="padding:6px;border-bottom:1px solid var(--border);font-size:10px;color:var(--text3)">${lb.map(([k,v])=>(BIDA_LABELS_GLOBAL[k]||k)+':'+v).join(', ')||'—'}</td>
         <td style="padding:6px;text-align:center;border-bottom:1px solid var(--border)">${r.monthsCounted}</td>
-      </tr>`).join('')}
+      </tr>`;}).join('')}
       </tbody></table></div>`;
   }catch(e){el.innerHTML='<div style="color:var(--red);font-size:12px;margin-top:8px">Report generation failed.</div>';}
 }
