@@ -9,6 +9,8 @@
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent"/>
 <title>MFD Duty Roster</title>
 <link rel="manifest" href="manifest.json"/>
+<link rel="icon" type="image/png" sizes="32x32" href="icons/favicon-32.png"/>
+<link rel="icon" type="image/png" sizes="64x64" href="icons/favicon-64.png"/>
 <link rel="apple-touch-icon" href="icons/icon-192.png"/>
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet"/>
 <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
@@ -46,7 +48,7 @@ input,select,textarea{font-family:'Inter',sans-serif}
 .screen.active{display:flex}
 #screen-login{background:var(--bg);align-items:center;justify-content:flex-start;overflow-y:auto}
 .login-inner{width:100%;max-width:480px;margin:0 auto;padding:32px 20px 40px;display:flex;flex-direction:column;align-items:center}
-.login-cloud{width:64px;height:64px;background:var(--card2);border-radius:18px;display:flex;align-items:center;justify-content:center;font-size:32px;margin-bottom:16px;border:1px solid var(--border2)}
+.login-logo{width:96px;height:96px;border-radius:50%;object-fit:cover;margin-bottom:16px;box-shadow:0 4px 24px rgba(56,189,248,.25);border:2px solid var(--border2)}
 .login-dept{font-size:11px;font-weight:500;letter-spacing:2px;color:var(--text2);text-transform:uppercase;margin-bottom:6px;text-align:center}
 .login-title{font-size:26px;font-weight:700;color:var(--text);margin-bottom:24px;text-align:center}
 .login-toggle{display:flex;background:var(--card2);border-radius:10px;padding:4px;gap:4px;width:100%;margin-bottom:28px;border:1px solid var(--border)}
@@ -280,7 +282,7 @@ textarea.fi{resize:vertical;min-height:80px}
 .fm-box{background:var(--bg2);border-radius:16px;width:100%;max-width:420px;padding:24px;display:flex;flex-direction:column;gap:14px;max-height:90vh;overflow-y:auto}
 #loading-screen{position:fixed;inset:0;background:var(--bg);display:flex;align-items:center;justify-content:center;flex-direction:column;gap:14px;z-index:9000;transition:opacity .4s}
 #loading-screen.hide{opacity:0;pointer-events:none}
-.ls-icon{font-size:44px}
+.ls-icon{width:64px;height:64px;border-radius:50%;object-fit:cover;box-shadow:0 4px 20px rgba(56,189,248,.3)}
 .ls-spinner{width:32px;height:32px;border:3px solid var(--border);border-top-color:var(--accent);border-radius:50%;animation:spin .7s linear infinite}
 @keyframes spin{to{transform:rotate(360deg)}}
 ::-webkit-scrollbar{width:3px}
@@ -306,12 +308,12 @@ textarea.fi{resize:vertical;min-height:80px}
   <span id="conn-banner-text">📶 Server से जोड्न सकिएन — पुरानो (cached) data देखाइँदैछ</span>
   <button onclick="retrySync()" style="background:#fff;color:#7c2d12;border:none;padding:4px 12px;border-radius:6px;font-size:11px;font-weight:700;cursor:pointer">Retry</button>
 </div>
-<div id="loading-screen"><div class="ls-icon">⛅</div><div class="ls-spinner"></div></div>
+<div id="loading-screen"><img src="icons/login-logo.png" alt="Loading" class="ls-icon"/><div class="ls-spinner"></div></div>
 
 <!-- LOGIN -->
 <div class="screen active" id="screen-login">
 <div class="login-inner">
-  <div class="login-cloud">☁️</div>
+  <img src="icons/login-logo.png" alt="DHM Logo" class="login-logo"/>
   <div class="login-dept">DEPT. OF HYDROLOGY &amp; METEOROLOGY · NEPAL</div>
   <div class="login-title">MFD Duty Roster</div>
   <div class="login-toggle">
@@ -884,13 +886,13 @@ const SEC_ICON={avia:'✈️',weather:'🌦️'};
 // ── PER-DUTY-CODE COLOR CODING (grouped by role family) ──
 // SDM = purple family, Forecaster = amber family, Observer = teal family
 const SHIFT_COLORS={
-  // SDM (purple)
-  'SM':'#8b5cf6','SA':'#a855f7','SD':'#6366f1','SMA':'#7c3aed','SDA':'#9333ea',
-  // Forecaster (amber/orange)
-  'MF':'#f59e0b','AF':'#f97316','M1':'#eab308','A1':'#fb923c','MA':'#ea580c','DA':'#c2410c',
-  'AFN*':'#92400e','NMF*':'#b45309',
-  // Observer (teal/green)
-  'MO':'#14b8a6','AO':'#10b981','MO1':'#06b6d4','AO2':'#22c55e','AON*':'#0f766e','NMO*':'#15803d'
+  // SDM
+  'SD':'#5A3080','SM':'#70D018','SMA':'#D0E8B8','SA':'#C0D8E0','SDA':'#C0A8E8',
+  // Forecaster
+  'MF':'#30E008','AF':'#5A3080','M1':'#30E008','A1':'#60E810','MA':'#B0D888','DA':'#A090E0',
+  'AFN*':'#EE9D89','NMF*':'#B00000',
+  // Observer
+  'MO':'#B8E0F0','AO':'#4A90D9','MO1':'#30E008','AO2':'#4FD1C5','AON*':'#F89800','NMO*':'#F0F000'
 };
 function _hexToRgb(hex){const h=hex.replace('#','');return{r:parseInt(h.slice(0,2),16),g:parseInt(h.slice(2,4),16),b:parseInt(h.slice(4,6),16)};}
 function _mixHex(hex,target,ratio){
