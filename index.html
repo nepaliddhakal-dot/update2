@@ -347,8 +347,20 @@ textarea.fi{resize:vertical;min-height:80px}
       </div>
       <input id="name-manual" class="fi" placeholder="Type your name..." style="display:none;margin-bottom:6px;width:100%"/>
       <div class="manual-link" onclick="toggleManual()">✏️ Type name manually</div>
-      <button class="btn-main" onclick="doLogin()">View My Roster</button>
+      <button class="btn-main" onclick="proceedToPasswordStep()">Continue</button>
     </div>
+    <div id="staff-pw-step" style="width:100%;display:none;flex-direction:column;align-items:center">
+      <div class="login-section-label" id="staff-pw-label">Enter your password</div>
+      <div id="staff-pw-hint" style="font-size:11px;color:var(--text3);text-align:center;margin-bottom:10px"></div>
+      <input class="fi" type="password" id="staff-pw-input" placeholder="Password" style="width:100%;margin-bottom:8px" autocomplete="current-password"/>
+      <input class="fi" type="password" id="staff-pw-confirm" placeholder="Confirm password" style="width:100%;margin-bottom:8px;display:none" autocomplete="new-password"/>
+      <div id="staff-pw-err" style="font-size:12px;color:var(--red);min-height:16px;margin-bottom:4px"></div>
+      <button class="btn-main" onclick="submitStaffPassword()">View My Roster</button>
+      <div class="manual-link" onclick="backToNameStep()" style="margin-top:10px">← Back</div>
+    </div>
+  </div>
+  <div style="width:100%;text-align:center;margin-top:14px">
+    <div class="manual-link" onclick="enterGuestView()">👁️ Guest / Public View (Full Roster only, no login)</div>
   </div>
   <div id="admin-login-form">
     <div class="form-field" style="width:100%">
@@ -413,7 +425,7 @@ textarea.fi{resize:vertical;min-height:80px}
         <div class="msc-name" id="msc-name">--</div>
         <div id="msc-time" style="font-size:11px;color:var(--text3);margin-top:6px"></div>
       </div>
-      <button onclick="openSwapModal()" style="margin:0 12px 10px;background:rgba(56,189,248,.1);border:1px solid rgba(56,189,248,.25);color:var(--accent);font-size:13px;font-weight:600;padding:10px;border-radius:var(--radius);width:calc(100% - 24px)">📨 Request Duty Change / ड्युटि परिवर्तन अनुरोध</button>
+      <button id="swap-fab" onclick="openSwapModal()" style="margin:0 12px 10px;background:rgba(56,189,248,.1);border:1px solid rgba(56,189,248,.25);color:var(--accent);font-size:13px;font-weight:600;padding:10px;border-radius:var(--radius);width:calc(100% - 24px)">📨 Request Duty Change / ड्युटि परिवर्तन अनुरोध</button>
       <div class="section-hdr" id="today-sec-hdr">All staff on duty</div>
       <div id="all-duty-list"></div>
       <div id="dashboard-chart" style="margin:10px 12px 0;background:var(--card2);border:1px solid var(--border2);border-radius:var(--radius);padding:12px"></div>
@@ -673,6 +685,14 @@ textarea.fi{resize:vertical;min-height:80px}
       <div class="a-card-title">📥 Export Month to Excel</div>
       <div class="a-info">कुनै एक महिनाको पूरा roster Excel (.xlsx) मा download गर्नुहोस्।</div>
       <div id="export-months-picker" style="display:flex;flex-wrap:wrap;gap:6px;margin-top:8px"></div>
+
+      <hr style="border-color:var(--border);margin:16px 0"/>
+
+      <!-- App installs -->
+      <div class="a-card-title">📲 App Installs (Add to Home Screen)</div>
+      <div class="a-info">कसले app आफ्नो phone मा install (Add to Home Screen) गरेको छ भन्ने list। ⚠️ यो feature deploy भएपछि naya install मात्र देखिन्छ — पुराना install track भएका छैनन्। iOS Safari मा यो event support नहुन सक्छ।</div>
+      <button class="btn-outline" onclick="loadAppInstalls()" style="margin:8px 0;padding:6px 12px;font-size:12px">🔄 Refresh</button>
+      <div id="app-installs-list"><div style="color:var(--text3);font-size:13px">Refresh थिचेर हेर्नुहोस्।</div></div>
     </div>
 
     <div class="admin-panel" id="ap-audit">
@@ -1278,22 +1298,88 @@ function toggleManual(){
   document.getElementById('name-select-wrap').style.display=manualMode?'none':'block';
   document.querySelector('.manual-link').textContent=manualMode?'📋 Choose from list':'✏️ Type name manually';
 }
-function doLogin(){
+let _pendingLoginHasPassword=false;
+async function proceedToPasswordStep(){
   if(!selectedSection){alert('Please select your section');return;}
   if(!selectedRole){alert('Please select your role');return;}
   const name=manualMode?document.getElementById('name-manual').value.trim():document.getElementById('name-select').value;
   if(!name){alert('Please select or enter your name');return;}
-  S.user={name,role:selectedRole,section:selectedSection};
-  localStorage.setItem('mfd_user',JSON.stringify(S.user));enterApp();
+  S._loginName=name;
+  document.getElementById('role-step').style.display='none';
+  document.getElementById('staff-pw-step').style.display='flex';
+  document.getElementById('staff-pw-err').textContent='';
+  document.getElementById('staff-pw-input').value='';
+  document.getElementById('staff-pw-confirm').value='';
+  document.getElementById('staff-pw-label').textContent='⏳ Checking...';
+  document.getElementById('staff-pw-hint').textContent='';
+  try{
+    const res=await fetch(S.scriptUrl+'?action=checkStaffHasPassword&name='+encodeURIComponent(name)+'&role='+encodeURIComponent(RLABEL[selectedRole]));
+    const d=await res.json();
+    _pendingLoginHasPassword=!!d.hasPassword;
+  }catch(e){_pendingLoginHasPassword=false;}
+  if(_pendingLoginHasPassword){
+    document.getElementById('staff-pw-label').textContent='🔒 Enter your password, '+name;
+    document.getElementById('staff-pw-hint').textContent='';
+    document.getElementById('staff-pw-confirm').style.display='none';
+  }else{
+    document.getElementById('staff-pw-label').textContent='🆕 Create your password, '+name;
+    document.getElementById('staff-pw-hint').textContent='यो पहिलो पटक login हो — आफ्नो password बनाउनुहोस् (कम्तिमा ४ अक्षर)। अर्को पटक देखि यही password चाहिन्छ।';
+    document.getElementById('staff-pw-confirm').style.display='block';
+  }
+}
+function backToNameStep(){
+  document.getElementById('staff-pw-step').style.display='none';
+  document.getElementById('role-step').style.display='flex';
+}
+async function submitStaffPassword(){
+  const name=S._loginName;
+  const pw=document.getElementById('staff-pw-input').value;
+  const err=document.getElementById('staff-pw-err');
+  if(!pw||pw.length<4){err.textContent='❌ Password कम्तिमा ४ अक्षरको हुनुपर्छ';return;}
+  err.textContent='⏳ Please wait...';
+  try{
+    if(_pendingLoginHasPassword){
+      const res=await fetch(S.scriptUrl,{method:'POST',body:JSON.stringify({action:'verifyStaffLogin',name,role:RLABEL[selectedRole],password:pw})});
+      const d=await res.json();
+      if(!d.success){err.textContent='❌ '+(d.error||'गलत password');return;}
+    }else{
+      const confirm2=document.getElementById('staff-pw-confirm').value;
+      if(pw!==confirm2){err.textContent='❌ Password मिलेन, फेरि जाँच्नुहोस्';return;}
+      const res=await fetch(S.scriptUrl,{method:'POST',body:JSON.stringify({action:'setStaffPassword',name,role:RLABEL[selectedRole],password:pw})});
+      const d=await res.json();
+      if(!d.success){err.textContent='❌ '+(d.error||'Password set गर्न सकिएन');return;}
+    }
+    S.user={name,role:selectedRole,section:selectedSection};
+    localStorage.setItem('mfd_user',JSON.stringify(S.user));
+    enterApp();
+  }catch(e){err.textContent='❌ Failed. Check connection.';}
+}
+function enterGuestView(){
+  S.user=null;S.guestMode=true;
+  localStorage.removeItem('mfd_user');
+  switchScreen('app');
+  // Hide everything except Full Roster — guest only sees the public roster + legend
+  document.querySelectorAll('.tab-bar .tab').forEach(t=>{if(!t.textContent.includes('Full Roster'))t.style.display='none';});
+  const fab=document.getElementById('swap-fab');if(fab)fab.style.display='none';
+  document.getElementById('hdr-name').textContent='👁️ Guest (Public View)';
+  document.getElementById('hdr-role-badge').style.display='none';
+  const secInline=document.getElementById('section-inline');if(secInline)secInline.style.display='none';
+  document.getElementById('duty-banner').style.display='none';
+  const frTabEl=[...document.querySelectorAll('.tab-bar .tab')].find(t=>t.textContent.includes('Full Roster'));
+  switchTab('fullroster',frTabEl);
 }
 function enterApp(){
   const sec=S.user.section||'avia';
   document.getElementById('hdr-name').textContent=S.user.name;
+  document.getElementById('hdr-role-badge').style.display='';
   document.getElementById('hdr-role-badge').textContent=RICON[S.user.role]+' '+RLABEL[S.user.role];
   document.getElementById('hdr-role-badge').className='role-badge '+sec;
+  document.querySelectorAll('.tab-bar .tab').forEach(t=>t.style.display='');
+  const fab=document.getElementById('swap-fab');if(fab)fab.style.display='';
   // Section badge (right side)
   const secInline=document.getElementById('section-inline');
   if(secInline){
+    secInline.style.display='';
     secInline.textContent=SEC_ICON[sec]+' '+SEC_LABEL[sec];
     if(sec==='avia'){secInline.style.background='var(--avia-dim)';secInline.style.color='var(--avia)';secInline.style.borderColor='rgba(249,115,22,.3)';}
     else{secInline.style.background='var(--weather-dim)';secInline.style.color='var(--weather)';secInline.style.borderColor='rgba(56,189,248,.3)';}
@@ -1304,10 +1390,12 @@ function enterApp(){
 }
 function logout(){
   if(!confirm('Logout?'))return;
-  S.user=null;localStorage.removeItem('mfd_user');
+  S.user=null;S.guestMode=false;localStorage.removeItem('mfd_user');
   selectedSection='';selectedRole='';
   document.querySelectorAll('.sec-card').forEach(c=>c.classList.remove('sel-avia','sel-weather'));
-  document.getElementById('role-step').style.display='none';switchScreen('login');
+  document.getElementById('role-step').style.display='none';
+  document.getElementById('staff-pw-step').style.display='none';
+  switchScreen('login');
 }
 
 // ── SCREENS / TABS ──
@@ -1337,7 +1425,7 @@ function switchAdminTab(tab,el){
   if(tab==='staff'){renderAdminStaff();checkUnassigned();}
  if(tab==='months')renderMonthsList();if(tab==='admins')renderAdminsTab();if(tab==='edit')loadEditMonths();if(tab==='requests')loadSwapRequests();if(tab==='roster'){const c=getCurrentBsMonth();afrBsYear=c.bsY;afrBsMonth=c.bsM;renderAdminFullRoster();}if(tab==='notify'){setNotifTarget('all');loadNotifHistory();}
 if(tab==='report'){loadReportMonths();}
-if(tab==='tools'){loadPendingApprovals();loadMonthFilesForReport();}
+if(tab==='tools'){loadPendingApprovals();loadMonthFilesForReport();loadAppInstalls();}
 if(tab==='audit'){loadAuditLog();}
 }
 
@@ -1927,16 +2015,15 @@ ${officialLetterheadHtml('(Admin) '+secTitle)}
   setTimeout(()=>URL.revokeObjectURL(url),30000);
 }
 function renderFrSecTabs(){
-  if(!S.user)return;
-  const own=S.user.section==='weather'?'weather':'avia';
+  const own=(S.user&&S.user.section==='weather')?'weather':'avia';
   const other=own==='avia'?'weather':'avia';
-  if(!S.frSectionInit){S.frSection=own;S.frSectionInit=true;}
+  if(!S.frSectionInit){S.frSection=S.user?own:'all';S.frSectionInit=true;}
   const defs={
     avia:{icon:'✈️',label:'TIA Aviation Met'},
     weather:{icon:'🌦️',label:'Weather Forecasting'},
     all:{icon:'👥',label:'Full Staff'}
   };
-  const order=[own,other,'all'];
+  const order=S.user?[own,other,'all']:['all','avia','weather'];
   const el=document.getElementById('fr-sec-tabs');
   if(!el)return;
   el.innerHTML=order.map(sec=>`<div class="fr-sec-tab${S.frSection===sec?' active':''}" data-sec="${sec}" onclick="frSetSection('${sec}',this)"><span class="ti">${defs[sec].icon}</span>${defs[sec].label}</div>`).join('');
@@ -2595,7 +2682,7 @@ function renderAdminStaff(){
   for(const sec of['avia','weather']){for(const role of['observer','forecaster','sdm']){
     const el=document.getElementById('sl-'+sec+'-'+role);if(!el)continue;
     const names=(S.staff[sec]&&S.staff[sec][role])||[];
-    el.innerHTML=names.map((n,i)=>`<div class="staff-item"><span class="si-name">${n}</span><div class="si-btns"><button class="btn-yellow" onclick="renameStaff('${sec}','${role}',${i})">Rename</button><button class="btn-red" onclick="removeStaff('${sec}','${role}',${i})">Remove</button></div></div>`).join('')||'<div style="color:var(--text3);font-size:13px;padding:8px 0">No staff added yet</div>';
+    el.innerHTML=names.map((n,i)=>`<div class="staff-item"><span class="si-name">${n}</span><div class="si-btns"><button class="btn-outline" style="padding:5px 8px;font-size:11px" onclick="resetStaffPassword('${n}','${role}')">🔑 Reset PW</button><button class="btn-yellow" onclick="renameStaff('${sec}','${role}',${i})">Rename</button><button class="btn-red" onclick="removeStaff('${sec}','${role}',${i})">Remove</button></div></div>`).join('')||'<div style="color:var(--text3);font-size:13px;padding:8px 0">No staff added yet</div>';
   }}switchSecTab(S.staffSecTab);
 }
 function addStaff(sec,role){
@@ -2613,6 +2700,14 @@ async function saveStaff(){
   if(!S.scriptUrl){alert('Saved locally!');return;}
   try{await fetch(S.scriptUrl,{method:'POST',mode:'no-cors',body:JSON.stringify({action:'saveStaff',staff:S.staff})});alert('✅ Staff saved!');}
   catch(e){alert('Saved locally.');}
+}
+async function resetStaffPassword(name,roleKey){
+  const roleLabel=RLABEL[roleKey]||roleKey;
+  if(!confirm(name+' ('+roleLabel+') को password हटाउने हो? उनले अर्को login मा नयाँ password बनाउनु पर्छ।'))return;
+  try{
+    await fetch(S.scriptUrl,{method:'POST',body:JSON.stringify({action:'resetStaffPassword',name,role:roleLabel,adminName:S.currentAdmin?.name||'Admin'})});
+    alert('✅ Password reset भयो। '+name+' ले अर्को पटक login गर्दा नयाँ password बनाउन सक्नुहुन्छ।');
+  }catch(e){alert('❌ Failed. Check connection.');}
 }
 
 // ── ADMIN MONTHS ──
@@ -3531,6 +3626,25 @@ async function exportMonthExcel(fileId,name){
     else alert('❌ Export link तयार गर्न सकिएन।');
   }catch(e){alert('❌ Export failed. Check connection.');}
 }
+async function loadAppInstalls(){
+  const el=document.getElementById('app-installs-list');
+  el.innerHTML='<div style="color:var(--text3);font-size:13px">⏳ Loading...</div>';
+  try{
+    const res=await fetch(S.scriptUrl+'?action=getAppInstalls');
+    const d=await res.json();
+    const rows=(d.data||[]).sort((a,b)=>new Date(b.timestamp)-new Date(a.timestamp));
+    if(!rows.length){el.innerHTML='<div style="color:var(--text3);font-size:13px">अहिलेसम्म कसैले install गरेको record भेटिएन।</div>';return;}
+    el.innerHTML=`<div style="font-size:11px;color:var(--text3);margin-bottom:8px">जम्मा ${rows.length} install</div>`+
+      rows.map(r=>{
+        const ua=r.userAgent||'';
+        const device=ua.includes('Android')?'📱 Android':ua.includes('iPhone')||ua.includes('iPad')?'📱 iOS':ua.includes('Windows')?'💻 Windows':ua.includes('Mac')?'💻 Mac':'🖥️ Unknown';
+        return`<div style="background:var(--bg3);border-radius:8px;padding:8px 12px;margin-bottom:6px;font-size:12px">
+          <div style="display:flex;justify-content:space-between"><b>${r.name}</b><span style="color:var(--text3)">${device}</span></div>
+          <div style="color:var(--text3);font-size:11px">${r.role||''} ${r.section?'· '+(SEC_LABEL[r.section]||r.section):''} · ${r.timestamp?new Date(r.timestamp).toLocaleString():''}</div>
+        </div>`;
+      }).join('');
+  }catch(e){el.innerHTML='<div style="color:var(--red);font-size:13px">Load failed.</div>';}
+}
 
 
 function registerSW(){
@@ -3540,6 +3654,18 @@ function registerSW(){
     }).catch(()=>{});
   }
 }
+// ── Track PWA installs (Add to Home Screen) so admin can see who installed the app ──
+window.addEventListener('appinstalled',()=>{
+  if(!S.scriptUrl)return;
+  const body={
+    action:'logAppInstall',
+    name:S.user?S.user.name:'Guest',
+    role:S.user?RLABEL[S.user.role]:'',
+    section:S.user?S.user.section:'',
+    userAgent:navigator.userAgent
+  };
+  fetch(S.scriptUrl,{method:'POST',mode:'no-cors',body:JSON.stringify(body)}).catch(()=>{});
+});
 </script>
 </body>
 </html>
