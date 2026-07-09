@@ -382,6 +382,7 @@ textarea.fi{resize:vertical;min-height:80px}
       <span class="role-badge" id="hdr-role-badge">--</span>
       <button class="icon-btn" id="theme-toggle-btn" onclick="toggleTheme()" title="Theme">🌙</button>
       <button class="icon-btn" id="notif-icon-btn" onclick="toggleNotifFromIcon()" title="Notifications">🔔</button>
+      <button class="icon-btn" onclick="openNotifPrefsModal()" title="Notification Settings">⚙️</button>
       <button class="icon-btn" onclick="logout()" title="Logout">⏏️</button>
     </div>
   </div>
@@ -839,6 +840,17 @@ textarea.fi{resize:vertical;min-height:80px}
       </div>
       <button class="btn-outline" onclick="document.getElementById('swap-modal').style.display='none'" style="width:100%">Cancel</button>
     </div>
+  </div>
+</div>
+
+<!-- NOTIFICATION PREFERENCES MODAL -->
+<div id="notif-prefs-modal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.75);z-index:1002;align-items:center;justify-content:center;padding:16px">
+  <div style="background:var(--card);border-radius:var(--radius);padding:20px;max-width:380px;width:100%">
+    <div style="font-size:15px;font-weight:700;margin-bottom:6px">⚙️ Notification Settings</div>
+    <div style="font-size:12px;color:var(--text3);margin-bottom:14px">दुई section मा काम गर्नुहुन्छ भने, तल दुवै छान्नुहोस् — त्यसपछि जुनसुकै section मा duty change भए पनि तपाईंलाई notification आउँछ।</div>
+    <div id="notif-prefs-list" style="display:flex;flex-direction:column;gap:8px;margin-bottom:16px"></div>
+    <button class="btn-green" onclick="saveNotifPrefs()" style="width:100%;margin-bottom:8px">💾 Save</button>
+    <button class="btn-outline" onclick="document.getElementById('notif-prefs-modal').style.display='none'" style="width:100%">Close</button>
   </div>
 </div>
 
@@ -2738,8 +2750,42 @@ async function toggleNotifFromIcon(){
     }catch(err){alert('❌ FCM Error: '+err.message);}
   }
 }
-async function regToken(token){if(!S.scriptUrl||!S.user)return;try{await fetch(S.scriptUrl,{method:'POST',mode:'no-cors',body:JSON.stringify({action:'saveToken',name:S.user.name,role:S.user.role,section:S.user.section,token})});}catch(e){}}
+async function regToken(token){
+  if(!S.scriptUrl||!S.user)return;
+  const savedPrefs=localStorage.getItem('mfd_notify_sections');
+  const notifySections=savedPrefs||S.user.section||'';
+  try{await fetch(S.scriptUrl,{method:'POST',mode:'no-cors',body:JSON.stringify({action:'saveToken',name:S.user.name,role:S.user.role,section:S.user.section,token,notifySections})});}catch(e){}
+}
 async function unregToken(){if(!S.scriptUrl||!S.user)return;try{await fetch(S.scriptUrl,{method:'POST',mode:'no-cors',body:JSON.stringify({action:'removeToken',name:S.user.name,role:S.user.role})});}catch(e){}}
+
+// ── NOTIFICATION SECTION PREFERENCES (for staff working in both sections) ──
+const ALL_SECTIONS=[{key:'avia',label:'✈️ TIA Aviation Met'},{key:'weather',label:'🌦️ Weather Forecasting'}];
+function openNotifPrefsModal(){
+  if(!S.user){alert('पहिले login गर्नुहोस्।');return;}
+  if(!S.fcmToken){alert('पहिले 🔔 थिचेर notifications ON गर्नुहोस्, त्यसपछि यहाँ preference छान्न मिल्छ।');return;}
+  const saved=(localStorage.getItem('mfd_notify_sections')||S.user.section||'').split(',').filter(Boolean);
+  const list=document.getElementById('notif-prefs-list');
+  list.innerHTML=ALL_SECTIONS.map(s=>`
+    <label style="display:flex;align-items:center;gap:10px;background:var(--bg3);padding:10px 12px;border-radius:10px;cursor:pointer">
+      <input type="checkbox" class="notif-sec-chk" value="${s.key}" ${saved.includes(s.key)?'checked':''} style="width:18px;height:18px"/>
+      <span style="font-size:13px;font-weight:500">${s.label}</span>
+      ${s.key===S.user.section?'<span style="font-size:10px;color:var(--accent);margin-left:auto">तपाईंको section</span>':''}
+    </label>`).join('');
+  document.getElementById('notif-prefs-modal').style.display='flex';
+}
+async function saveNotifPrefs(){
+  const checked=[...document.querySelectorAll('.notif-sec-chk:checked')].map(c=>c.value);
+  if(!checked.length){alert('कम्तिमा एउटा section त छान्नुहोस्।');return;}
+  const notifySections=checked.join(',');
+  localStorage.setItem('mfd_notify_sections',notifySections);
+  if(S.scriptUrl){
+    try{
+      await fetch(S.scriptUrl,{method:'POST',body:JSON.stringify({action:'saveNotifyPrefs',name:S.user.name,role:S.user.role,notifySections})});
+    }catch(e){}
+  }
+  document.getElementById('notif-prefs-modal').style.display='none';
+  alert('✅ Saved! अब यी सबै section को duty change notification तपाईंलाई आउँछ: '+checked.map(k=>ALL_SECTIONS.find(s=>s.key===k)?.label||k).join(', '));
+}
 
 // ── THEME ──
 function applyTheme(theme){
