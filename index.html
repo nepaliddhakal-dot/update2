@@ -50,6 +50,7 @@ input,select,textarea{font-family:'Inter',sans-serif}
 .login-inner{width:100%;max-width:480px;margin:0 auto;padding:32px 20px 40px;display:flex;flex-direction:column;align-items:center}
 .login-logo{width:96px;height:96px;border-radius:50%;object-fit:cover;margin-bottom:16px;box-shadow:0 4px 24px rgba(56,189,248,.25);border:2px solid var(--border2)}
 .login-dept{font-size:11px;font-weight:500;letter-spacing:2px;color:var(--text2);text-transform:uppercase;margin-bottom:6px;text-align:center}
+.login-dept-main{font-size:15px;font-weight:700;color:var(--text);text-align:center;line-height:1.3;padding:0 20px}
 .login-title{font-size:26px;font-weight:700;color:var(--text);margin-bottom:24px;text-align:center}
 .login-toggle{display:flex;background:var(--card2);border-radius:10px;padding:4px;gap:4px;width:100%;margin-bottom:28px;border:1px solid var(--border)}
 .lt-btn{flex:1;padding:9px;text-align:center;border-radius:7px;font-size:13px;font-weight:500;color:var(--text2);background:none;border:none;transition:all .2s;display:flex;align-items:center;justify-content:center;gap:6px}
@@ -313,9 +314,11 @@ textarea.fi{resize:vertical;min-height:80px}
 <!-- LOGIN -->
 <div class="screen active" id="screen-login">
 <div class="login-inner">
-  <img src="icons/login-logo.png" alt="DHM Logo" class="login-logo"/>
-  <div class="login-dept">DEPT. OF HYDROLOGY &amp; METEOROLOGY · NEPAL</div>
-  <div class="login-title">MFD Duty Roster</div>
+  <img src="icons/login-logo.png" alt="DHM Logo" class="login-logo" onerror="this.style.display='none'"/>
+  <div class="login-dept" style="margin-bottom:2px">Government of Nepal</div>
+  <div class="login-dept-main">Department of Hydrology and Meteorology</div>
+  <div class="login-dept" style="margin-top:2px;margin-bottom:10px">Meteorological Forecasting Division</div>
+  <div class="login-title">Duty Roster</div>
   <div class="login-toggle">
     <button class="lt-btn active" id="lt-staff" onclick="showLoginMode('staff')">👤 Staff View</button>
     <button class="lt-btn" id="lt-admin" onclick="showLoginMode('admin')">🔐 Admin Login</button>
@@ -1621,6 +1624,15 @@ function frZoomOut(){S.frZoom=Math.max(0.4,+(S.frZoom-0.1).toFixed(1));applyZoom
 function applyZoom(){document.getElementById('fr-scale').style.transform=`scale(${S.frZoom})`;document.getElementById('fr-zoom-lbl').textContent=Math.round(S.frZoom*100)+'%';}
 function frGoToday(){const c=getCurrentBsMonth();S.frBsYear=c.bsY;S.frBsMonth=c.bsM;renderFullRoster();setTimeout(()=>{const el=document.querySelector('#fr-table .today-row');if(el)el.scrollIntoView({block:'center',behavior:'smooth'});},200);}
 function frGoLegend(){const el=document.getElementById('fr-legend');if(el)el.scrollIntoView({behavior:'smooth',block:'start'});}
+function officialLetterheadHtml(subtitle){
+  return`<div style="text-align:center;margin-bottom:12px">
+    <div style="font-size:11px;color:#333;letter-spacing:.5px">Government of Nepal</div>
+    <div style="font-size:16px;font-weight:800;color:#0f2942;margin-top:2px">Department of Hydrology and Meteorology</div>
+    <div style="font-size:12px;font-weight:600;color:#0f2942;margin-top:1px">Meteorological Forecasting Division</div>
+    <div style="width:120px;border-top:2px solid #0f2942;margin:6px auto"></div>
+    <div style="font-size:14px;font-weight:700;color:#0f2942">📋 Duty Roster${subtitle?' — '+subtitle:''}</div>
+  </div>`;
+}
 function frPrintRoster(){
   const bsY=S.frBsYear,bsM=S.frBsMonth;
   const{np,en}=buildBsHeader(bsY,bsM);
@@ -1691,7 +1703,7 @@ td.c-none{color:#bbb}
 @media print{button{display:none}}
 </style>
 </head><body>
-<h1>📋 MFD Duty Roster — ${secTitle}</h1>
+${officialLetterheadHtml(secTitle)}
 <div class="meta"><b>Month:</b> ${np} (${en}) &nbsp;|&nbsp; <b>Total Staff:</b> ${allStaff.length} &nbsp;|&nbsp; <b>Generated:</b> ${new Date().toLocaleString()}</div>
 <table><thead><tr>${h1}</tr><tr>${h2}</tr></thead><tbody>${tbody}</tbody></table>
 <script>window.onload=()=>setTimeout(()=>window.print(),150);<\/script>
@@ -1864,7 +1876,7 @@ td.c-none{color:#bbb}
 @media print{button{display:none}}
 </style>
 </head><body>
-<h1>📋 MFD Duty Roster (Admin) — ${secTitle}</h1>
+${officialLetterheadHtml('(Admin) '+secTitle)}
 <div class="meta"><b>Month:</b> ${np} (${en}) &nbsp;|&nbsp; <b>Total Staff:</b> ${allStaff.length} &nbsp;|&nbsp; <b>Generated:</b> ${new Date().toLocaleString()}</div>
 <table><thead><tr>${h1}</tr><tr>${h2}</tr></thead><tbody>${tbody}</tbody></table>
 <script>window.onload=()=>setTimeout(()=>window.print(),150);<\/script>
@@ -3157,7 +3169,7 @@ function generateMyDutyPDF(bsY,bsM){
   const html=`<!DOCTYPE html><html><head><meta charset="UTF-8"/><title>Duty Report</title>
   <style>body{font-family:Arial,sans-serif;margin:20px;color:#1a1a1a}h1{color:#1a3a5c;border-bottom:2px solid #1a3a5c;padding-bottom:8px}table{border-collapse:collapse;width:100%}th{background:#1a3a5c;color:#fff;padding:8px;text-align:left}tr:nth-child(even){background:#f5f5f5}.summary{display:flex;gap:20px;margin:16px 0}.sum-card{background:#f0f4f8;border-radius:8px;padding:12px 20px;text-align:center}.sum-card .num{font-size:28px;font-weight:700;color:#1a3a5c}.sum-card .lbl{font-size:12px;color:#666}@media print{button{display:none}}</style>
   </head><body>
-  <h1>📋 MFD Duty Roster — Monthly Report</h1>
+  ${officialLetterheadHtml('Monthly Report')}
   <table style="margin-bottom:16px;font-size:13px"><tr><td><b>Staff Name:</b></td><td>${name}</td><td><b>Role:</b></td><td>${RLABEL?.[role]||role}</td></tr>
   <tr><td><b>Month:</b></td><td>${month.name||''}</td><td><b>Section:</b></td><td>${SEC_LABEL?.[S.user.section]||''}</td></tr>
   <tr><td><b>Generated:</b></td><td colspan="3">${new Date().toLocaleString()}</td></tr></table>
@@ -3235,7 +3247,7 @@ function generateAdminPDF(){
   const html=`<!DOCTYPE html><html><head><meta charset="UTF-8"/><title>Admin Report</title>
   <style>body{font-family:Arial,sans-serif;margin:20px}h1{color:#1a3a5c;border-bottom:2px solid #1a3a5c;padding-bottom:8px}table{border-collapse:collapse;width:100%}th{background:#1a3a5c;color:#fff;padding:8px;text-align:left}tr:nth-child(even){background:#f5f5f5}@media print{button{display:none}}</style>
   </head><body>
-  <h1>📋 MFD Duty Roster — Admin Report</h1>
+  ${officialLetterheadHtml('Admin Report')}
   <p><b>Month:</b> ${monthName} &nbsp;|&nbsp; <b>Section:</b> ${section==='all'?'All':SEC_LABEL?.[section]||section} &nbsp;|&nbsp; <b>Role:</b> ${role==='all'?'All':(RLABEL?.[role]||role)} &nbsp;|&nbsp; <b>Generated:</b> ${new Date().toLocaleString()}</p>
   <p><b>Total Staff:</b> ${staffList.length}</p>
   <table><tr><th>Name</th><th>Role</th><th>Section</th><th>Duty Days</th><th>Leave Days</th><th>Shift Breakdown</th></tr>${tableRows}</table>
