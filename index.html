@@ -96,9 +96,10 @@ input,select,textarea{font-family:'Inter',sans-serif}
 .ah-left{display:flex;flex-direction:column;gap:1px;flex-shrink:0}
 .ah-left .welcome{font-size:10px;color:var(--text2);line-height:1}
 .ah-left .uname{font-size:16px;font-weight:800;color:var(--text);line-height:1.2}
-.ah-mid{flex:1;display:none;flex-direction:column;align-items:center;justify-content:center;gap:2px}
-.ah-mid .duty-title{font-size:12px;font-weight:700;color:var(--text)}
-.ah-mid .duty-shift{font-size:12px;color:var(--text2)}
+.ah-mid{display:none;align-items:center;justify-content:center;gap:8px;padding:9px 14px;background:var(--card);border-bottom:1px solid var(--border);flex-shrink:0}
+.ah-mid.day-off{background:var(--green-dim)}
+.ah-mid .duty-title{font-size:13px;font-weight:700;color:var(--text)}
+.ah-mid .duty-shift{font-size:13px;color:var(--text2)}
 .ah-mid .duty-shift span{color:var(--accent);font-weight:700}
 .ah-mid.day-off .duty-shift span{color:var(--green)}
 .ah-right{display:flex;align-items:center;gap:6px;flex-shrink:0}
@@ -388,18 +389,17 @@ textarea.fi{resize:vertical;min-height:80px}
       <div class="welcome">Welcome,</div>
       <div class="uname" id="hdr-name">--</div>
     </div>
-    <div class="ah-mid" id="ah-mid">
-      <div class="duty-title" id="ah-duty-title">You are on duty today!</div>
-      <div class="duty-shift">Shift: <span id="ah-duty-shift">--</span></div>
-    </div>
     <div class="ah-right">
-      <div class="section-inline" id="section-inline"></div>
       <span class="role-badge" id="hdr-role-badge">--</span>
       <button class="icon-btn" id="theme-toggle-btn" onclick="toggleTheme()" title="Theme">🌙</button>
       <button class="icon-btn" id="notif-icon-btn" onclick="toggleNotifFromIcon()" title="Notifications">🔔</button>
       <button class="icon-btn" onclick="openNotifPrefsModal()" title="Notification Settings">⚙️</button>
       <button class="icon-btn" onclick="logout()" title="Logout">⏏️</button>
     </div>
+  </div>
+  <div class="ah-mid" id="ah-mid">
+    <div class="duty-title" id="ah-duty-title">You are on duty today!</div>
+    <div class="duty-shift">Shift: <span id="ah-duty-shift">--</span></div>
   </div>
   <div id="section-strip" style="display:none"></div>
   <div id="duty-banner" style="display:none">
@@ -1364,7 +1364,10 @@ function enterGuestView(){
   document.getElementById('hdr-name').textContent='👁️ Guest (Public View)';
   document.getElementById('hdr-role-badge').style.display='none';
   const secInline=document.getElementById('section-inline');if(secInline)secInline.style.display='none';
-  document.getElementById('duty-banner').style.display='none';
+  const ahMid=document.getElementById('ah-mid');if(ahMid)ahMid.style.display='none';
+  // Guest has no account, so notification bell + notification settings don't apply
+  const notifIcon=document.getElementById('notif-icon-btn');if(notifIcon)notifIcon.style.display='none';
+  const gearBtn=document.querySelector('[onclick="openNotifPrefsModal()"]');if(gearBtn)gearBtn.style.display='none';
   const frTabEl=[...document.querySelectorAll('.tab-bar .tab')].find(t=>t.textContent.includes('Full Roster'));
   switchTab('fullroster',frTabEl);
 }
@@ -1374,6 +1377,8 @@ function enterApp(){
   document.getElementById('hdr-role-badge').style.display='';
   document.getElementById('hdr-role-badge').textContent=RICON[S.user.role]+' '+RLABEL[S.user.role];
   document.getElementById('hdr-role-badge').className='role-badge '+sec;
+  const notifIcon=document.getElementById('notif-icon-btn');if(notifIcon)notifIcon.style.display='';
+  const gearBtn=document.querySelector('[onclick="openNotifPrefsModal()"]');if(gearBtn)gearBtn.style.display='';
   document.querySelectorAll('.tab-bar .tab').forEach(t=>t.style.display='');
   const fab=document.getElementById('swap-fab');if(fab)fab.style.display='';
   // Section badge (right side)
@@ -1395,6 +1400,7 @@ function logout(){
   document.querySelectorAll('.sec-card').forEach(c=>c.classList.remove('sel-avia','sel-weather'));
   document.getElementById('role-step').style.display='none';
   document.getElementById('staff-pw-step').style.display='none';
+  const ahMid=document.getElementById('ah-mid');if(ahMid)ahMid.style.display='none';
   switchScreen('login');
 }
 
@@ -1419,6 +1425,7 @@ function switchTab(tab,el){
   }
 }
 function switchAdminTab(tab,el){
+  S.currentAdminTab=tab;
   document.querySelectorAll('.at-btn').forEach(b=>b.classList.remove('active'));
   document.querySelectorAll('.admin-panel').forEach(p=>p.classList.remove('active'));
   el.classList.add('active');document.getElementById('ap-'+tab).classList.add('active');
@@ -3128,9 +3135,14 @@ function renderSwapRequests(requests){
     if(r.batchId){(batches[r.batchId]=batches[r.batchId]||[]).push(r);}
     else singles.push(r);
   });
-  const items=[...singles.map(r=>({type:'single',r,ts:r.timestamp})),
-    ...Object.entries(batches).map(([bid,rows])=>({type:'batch',bid,rows,ts:rows[0].timestamp}))];
-  items.sort((a,b)=>new Date(b.ts)-new Date(a.ts));
+  const items=[...singles.map(r=>({type:'single',r,ts:r.timestamp,ri:r.rowIndex||0})),
+    ...Object.entries(batches).map(([bid,rows])=>({type:'batch',bid,rows,ts:rows[0].timestamp,ri:Math.max(...rows.map(x=>x.rowIndex||0))}))];
+  items.sort((a,b)=>{
+    const ta=new Date(a.ts).getTime(),tb=new Date(b.ts).getTime();
+    // fall back to rowIndex (always increases with newer sheet rows) if a timestamp is missing/invalid
+    if(isNaN(ta)||isNaN(tb))return b.ri-a.ri;
+    return tb-ta;
+  });
 
   el.innerHTML=items.map(item=>{
     if(item.type==='single'){
@@ -3209,7 +3221,10 @@ async function resolveBatch(batchId,encodedRows,status){
   }
   alert('✅ '+ok+' दिन update भयो।'+(fail?' ❌ '+fail+' असफल भयो, फेरि प्रयास गर्नुहोस्।':''));
   loadSwapRequests();
-  if(status==='Approved')syncData(true);
+  if(status==='Approved'){
+    await syncData(true);
+    if(S.currentAdminTab==='roster')renderAdminFullRoster();
+  }
 }
 async function resolveRequest(rowIndex,fileId,user,role,section,date,requested,status){
   if(!confirm(status+' this request?\n\nUser: '+user+'\nDate: '+date+'\nNew duty: '+requested))return;
@@ -3225,7 +3240,12 @@ async function resolveRequest(rowIndex,fileId,user,role,section,date,requested,s
     alert('✅ '+status+'! Roster updated and staff notified.'+(status==='Approved'?' Section-wide notification पनि पठाइयो।':''));
     loadSwapRequests();
     // Also refresh roster if approved
-    if(status==='Approved')syncData(true);
+    if(status==='Approved'){
+      await syncData(true);
+      // If admin is currently on the Roster tab, redraw it now with the fresh data —
+      // syncData() alone updates S.rosters but doesn't repaint this specific admin view.
+      if(S.currentAdminTab==='roster')renderAdminFullRoster();
+    }
   }catch(e){alert('❌ Failed. Check connection.');}
 }
 // ── SECURITY ──
@@ -3632,14 +3652,22 @@ async function loadAppInstalls(){
   try{
     const res=await fetch(S.scriptUrl+'?action=getAppInstalls');
     const d=await res.json();
-    const rows=(d.data||[]).sort((a,b)=>new Date(b.timestamp)-new Date(a.timestamp));
+    const all=(d.data||[]).sort((a,b)=>new Date(b.timestamp)-new Date(a.timestamp));
+    // Collapse entries from the same person within 30 minutes of each other —
+    // these are almost always the double-fire quirk, not real separate installs.
+    const rows=[];
+    for(const r of all){
+      const dup=rows.find(x=>x.name===r.name&&x.role===r.role&&x.section===r.section&&Math.abs(new Date(x.timestamp)-new Date(r.timestamp))<30*60*1000);
+      if(dup){dup._count=(dup._count||1)+1;}
+      else rows.push({...r,_count:1});
+    }
     if(!rows.length){el.innerHTML='<div style="color:var(--text3);font-size:13px">अहिलेसम्म कसैले install गरेको record भेटिएन।</div>';return;}
     el.innerHTML=`<div style="font-size:11px;color:var(--text3);margin-bottom:8px">जम्मा ${rows.length} install</div>`+
       rows.map(r=>{
         const ua=r.userAgent||'';
         const device=ua.includes('Android')?'📱 Android':ua.includes('iPhone')||ua.includes('iPad')?'📱 iOS':ua.includes('Windows')?'💻 Windows':ua.includes('Mac')?'💻 Mac':'🖥️ Unknown';
         return`<div style="background:var(--bg3);border-radius:8px;padding:8px 12px;margin-bottom:6px;font-size:12px">
-          <div style="display:flex;justify-content:space-between"><b>${r.name}</b><span style="color:var(--text3)">${device}</span></div>
+          <div style="display:flex;justify-content:space-between"><b>${r.name}${r._count>1?' <span style="color:var(--text3);font-weight:400">(×'+r._count+')</span>':''}</b><span style="color:var(--text3)">${device}</span></div>
           <div style="color:var(--text3);font-size:11px">${r.role||''} ${r.section?'· '+(SEC_LABEL[r.section]||r.section):''} · ${r.timestamp?new Date(r.timestamp).toLocaleString():''}</div>
         </div>`;
       }).join('');
@@ -3652,11 +3680,34 @@ function registerSW(){
     navigator.serviceWorker.register('sw.js').then(reg=>{
       reg.addEventListener('updatefound',()=>{const nw=reg.installing;nw.addEventListener('statechange',()=>{if(nw.state==='installed'&&navigator.serviceWorker.controller)document.getElementById('update-banner').style.display='flex';});});
     }).catch(()=>{});
+    // ── Auto-reload once when a new Service Worker takes control ──
+    // This is THE fix for "have to clear site data for updates to work":
+    // previously staff had to notice+click the banner, or clear storage, to get new code.
+    // Now the moment a new version activates, every open tab silently refreshes itself.
+    let _swRefreshing=false;
+    navigator.serviceWorker.addEventListener('controllerchange',()=>{
+      if(_swRefreshing)return;
+      _swRefreshing=true;
+      sessionStorage.setItem('mfd_just_updated','1');
+      window.location.reload();
+    });
+  }
+  // If this load happened right after an auto-update-reload, show a friendly "what's new" toast
+  if(sessionStorage.getItem('mfd_just_updated')){
+    sessionStorage.removeItem('mfd_just_updated');
+    setTimeout(()=>{
+      showToast('✨ App अपडेट भयो! नयाँ features उपलब्ध छन् — Full Roster मा रङ, Bulk leave request, आदि।',100);
+      setTimeout(hideToast,4000);
+    },800);
   }
 }
 // ── Track PWA installs (Add to Home Screen) so admin can see who installed the app ──
 window.addEventListener('appinstalled',()=>{
   if(!S.scriptUrl)return;
+  // 'appinstalled' can fire more than once for the same install on some Android/Chrome
+  // versions — only log it once per device so the admin list doesn't get duplicate rows.
+  if(localStorage.getItem('mfd_install_logged'))return;
+  localStorage.setItem('mfd_install_logged','1');
   const body={
     action:'logAppInstall',
     name:S.user?S.user.name:'Guest',
