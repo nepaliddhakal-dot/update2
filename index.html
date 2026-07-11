@@ -2463,11 +2463,13 @@ const requested=selVal==='__custom__'
   err.textContent='⏳ Sending...';
   const tabName=SEC_ABBR[S.user.section||'avia']+'-'+RLABEL[S.user.role];
   try{
-    await fetch(S.scriptUrl,{method:'POST',body:JSON.stringify({
+    const res=await fetch(S.scriptUrl,{method:'POST',body:JSON.stringify({
       action:'saveSwapRequest',tabName,user:S.user.name,role:RLABEL[S.user.role],
       section:S.user.section||'avia',date,currentDuty:current,requestedDuty:requested,swapWithName,message,
       timestamp:new Date().toISOString()
     })});
+    const d=await res.json();
+    if(d.success===false){err.textContent='❌ '+(d.error||'Failed to send.');return;}
     document.getElementById('swap-modal').style.display='none';
     alert(swapWithName?'✅ Request sent! '+swapWithName+' लाई पनि सूचित गरियो, र Admin लाई अनुरोध पठाइयो।':'✅ Request sent! Admin लाई अनुरोध पठाइयो।');
   }catch(e){err.textContent='❌ Failed to send. Check connection.';}
@@ -2992,7 +2994,7 @@ async function loadMyRequests(){
       const statusBg=r.status==='Approved'?'var(--green-dim)':r.status==='Rejected'?'rgba(248,113,113,.1)':'rgba(251,191,36,.1)';
       return`<div style="background:var(--bg3);border:1px solid var(--border);border-radius:10px;padding:10px 12px;margin-bottom:8px">
         <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:4px">
-          <span style="font-size:12px;color:var(--text2)">📅 ${r.date}</span>
+          <span style="font-size:12px;color:var(--text2)">📅 ${reqDateStr(r.date)}</span>
           <span style="font-size:11px;font-weight:700;padding:2px 8px;border-radius:100px;background:${statusBg};color:${statusColor}">${r.status}</span>
         </div>
         <div style="font-size:12px;font-weight:600">${r.current} → <span style="color:var(--accent)">${r.requested}</span></div>
@@ -3125,6 +3127,12 @@ async function loadSwapRequests(){
     el.innerHTML='<div style="color:var(--red);font-size:13px">❌ Failed to load. Check connection.</div>';
   }
 }
+function reqDateStr(iso){
+  if(!iso)return'';
+  const d=new Date(iso+'T00:00:00');
+  if(isNaN(d))return iso;
+  return d.toLocaleDateString('en-GB',{weekday:'short',day:'numeric',month:'short',year:'numeric'});
+}
 function renderSwapRequests(requests){
   const el=document.getElementById('requests-list');
   if(!requests.length){el.innerHTML='<div style="color:var(--text3);font-size:13px">No requests yet.</div>';return;}
@@ -3154,7 +3162,7 @@ function renderSwapRequests(requests){
           <div style="font-size:14px;font-weight:700">${r.user} <span style="font-size:11px;color:var(--text2);font-weight:400">${r.role}</span></div>
           <span style="font-size:11px;font-weight:700;padding:3px 10px;border-radius:100px;background:${r.status==='Approved'?'var(--green-dim)':r.status==='Rejected'?'rgba(248,113,113,.1)':'rgba(251,191,36,.1)'};color:${statusColor}">${r.status}</span>
         </div>
-        <div style="font-size:12px;color:var(--text2)">📅 ${r.date}</div>
+        <div style="font-size:12px;color:var(--text2)">📅 ${reqDateStr(r.date)}</div>
         <div style="display:flex;align-items:center;gap:8px;font-size:13px;font-weight:600">
           <span style="color:var(--text2)">${r.current}</span>
           <span style="color:var(--text3)">→</span>
@@ -3185,7 +3193,7 @@ function renderSwapRequests(requests){
         <div style="font-size:14px;font-weight:700">📆 ${first.user} <span style="font-size:11px;color:var(--text2);font-weight:400">${first.role} · Bulk (${rows.length} days)</span></div>
         <span style="font-size:11px;font-weight:700;padding:3px 10px;border-radius:100px;background:rgba(56,189,248,.1);color:${statusColor}">${statusLabel}</span>
       </div>
-      <div style="font-size:12px;color:var(--text2)">📅 ${rows[0].date} → ${rows[rows.length-1].date} (${rows.length} दिन)</div>
+      <div style="font-size:12px;color:var(--text2)">📅 ${reqDateStr(rows[0].date)} → ${reqDateStr(rows[rows.length-1].date)} (${rows.length} दिन)</div>
       <div style="display:flex;align-items:center;gap:8px;font-size:13px;font-weight:600">
         <span style="color:var(--text3)">सबै दिन →</span>
         <span style="color:var(--accent)">${first.requested}</span>
