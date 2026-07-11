@@ -3291,8 +3291,8 @@ function renderSwapRequests(requests){
           <div class="fg"><label class="fl">Admin Note (optional)</label>
             <input class="fi" id="note-${r.rowIndex}" placeholder="Reason for rejection, etc." style="font-size:12px"/></div>
           <div style="display:flex;gap:8px">
-            <button class="btn-green" onclick="resolveRequest(${r.rowIndex},'${r.fileId||''}','${r.user}','${r.role}','${r.section||''}','${r.date}','${r.requested}','Approved')" style="flex:1;padding:9px;font-size:13px">✅ Approve</button>
-            <button class="btn-red" onclick="resolveRequest(${r.rowIndex},'${r.fileId||''}','${r.user}','${r.role}','${r.section||''}','${r.date}','${r.requested}','Rejected')" style="flex:1;padding:9px;font-size:13px">❌ Reject</button>
+            <button class="btn-green" onclick="resolveRequest(${r.rowIndex},'${r.fileId||''}','${r.user}','${r.role}','${r.section||''}','${r.date}','${r.requested}','Approved','${r.current||''}','${r.swapWith||''}')" style="flex:1;padding:9px;font-size:13px">✅ Approve</button>
+            <button class="btn-red" onclick="resolveRequest(${r.rowIndex},'${r.fileId||''}','${r.user}','${r.role}','${r.section||''}','${r.date}','${r.requested}','Rejected','${r.current||''}','${r.swapWith||''}')" style="flex:1;padding:9px;font-size:13px">❌ Reject</button>
           </div>`:''}
       </div>`;
     }
@@ -3350,18 +3350,19 @@ async function resolveBatch(batchId,encodedRows,status){
     if(S.currentAdminTab==='roster')renderAdminFullRoster();
   }
 }
-async function resolveRequest(rowIndex,fileId,user,role,section,date,requested,status){
-  if(!confirm(status+' this request?\n\nUser: '+user+'\nDate: '+date+'\nNew duty: '+requested))return;
+async function resolveRequest(rowIndex,fileId,user,role,section,date,requested,status,current,swapWith){
+  const swapNote=swapWith?('\n\n🔁 This will ALSO change '+swapWith+"'s duty on "+date+' to '+current+' ('+user+"'s old duty) — two-way swap."):'';
+  if(!confirm(status+' this request?\n\nUser: '+user+'\nDate: '+date+'\nNew duty: '+requested+swapNote))return;
   const adminNote=document.getElementById('note-'+rowIndex)?.value.trim()||'';
   try{
     await fetch(S.scriptUrl,{
       method:'POST',
       body:JSON.stringify({
         action:'resolveSwapRequest',
-        rowIndex, fileId:fileId||'', user, role, section, date, requested, status, adminNote
+        rowIndex, fileId:fileId||'', user, role, section, date, requested, status, adminNote, current, swapWith
       })
     });
-    alert('✅ '+status+'! Roster updated and staff notified.'+(status==='Approved'?' Section-wide notification पनि पठाइयो।':''));
+    alert('✅ '+status+'! Roster updated and staff notified.'+(status==='Approved'?' Section-wide notification पनि पठाइयो।':'')+(status==='Approved'&&swapWith?' '+swapWith+"'s duty was also updated.":''));
     loadSwapRequests();
     // Also refresh roster if approved
     if(status==='Approved'){
