@@ -306,6 +306,16 @@ textarea.fi{resize:vertical;min-height:80px}
   <span style="font-size:13px;font-weight:600">🔄 New update available!</span>
   <button onclick="window.location.reload()" style="background:#071a10;color:var(--green);border:none;padding:6px 14px;border-radius:8px;font-size:12px;font-weight:700;cursor:pointer">Update Now</button>
 </div>
+<div id="install-banner" style="display:none;position:fixed;bottom:140px;left:12px;right:12px;z-index:8900;background:var(--card);border:1px solid var(--accent);color:var(--text);border-radius:var(--radius);padding:12px 16px;align-items:center;justify-content:space-between;gap:10px;box-shadow:0 4px 20px rgba(0,0,0,.4)">
+  <div style="flex:1;min-width:0">
+    <div style="font-size:13px;font-weight:700">📲 App home screen मा राख्नुहोस्</div>
+    <div style="font-size:11px;color:var(--text2);margin-top:2px" id="install-banner-sub">छिटो खोल्न र offline पनि चलाउन install गर्नुहोस्।</div>
+  </div>
+  <div style="display:flex;gap:6px;flex-shrink:0">
+    <button onclick="dismissInstallBanner()" style="background:transparent;border:1px solid var(--border);color:var(--text2);padding:6px 10px;border-radius:8px;font-size:11px;cursor:pointer">पछि</button>
+    <button id="install-banner-btn" onclick="triggerInstall()" style="background:var(--accent);color:#04202b;border:none;padding:6px 14px;border-radius:8px;font-size:12px;font-weight:700;cursor:pointer">Install</button>
+  </div>
+</div>
 <div id="conn-banner" style="display:none;position:fixed;top:0;left:0;right:0;z-index:9500;background:#7c2d12;color:#fff;padding:8px 14px;font-size:12px;font-weight:600;text-align:center;align-items:center;justify-content:center;gap:10px">
   <span id="conn-banner-text">📶 Server से जोड्न सकिएन — पुरानो (cached) data देखाइँदैछ</span>
   <button onclick="retrySync()" style="background:#fff;color:#7c2d12;border:none;padding:4px 12px;border-radius:6px;font-size:11px;font-weight:700;cursor:pointer">Retry</button>
@@ -353,8 +363,14 @@ textarea.fi{resize:vertical;min-height:80px}
     <div id="staff-pw-step" style="width:100%;display:none;flex-direction:column;align-items:center">
       <div class="login-section-label" id="staff-pw-label">Enter your password</div>
       <div id="staff-pw-hint" style="font-size:11px;color:var(--text3);text-align:center;margin-bottom:10px"></div>
-      <input class="fi" type="password" id="staff-pw-input" placeholder="Password" style="width:100%;margin-bottom:8px" autocomplete="current-password"/>
-      <input class="fi" type="password" id="staff-pw-confirm" placeholder="Confirm password" style="width:100%;margin-bottom:8px;display:none" autocomplete="new-password"/>
+      <div class="fi-pw-wrap" style="width:100%;margin-bottom:8px">
+        <input class="fi" type="password" id="staff-pw-input" placeholder="Password" style="width:100%" autocomplete="current-password"/>
+        <button class="fi-eye" onclick="togglePwVis('staff-pw-input',this)">👁</button>
+      </div>
+      <div class="fi-pw-wrap" id="staff-pw-confirm-wrap" style="width:100%;margin-bottom:8px;display:none">
+        <input class="fi" type="password" id="staff-pw-confirm" placeholder="Confirm password" style="width:100%" autocomplete="new-password"/>
+        <button class="fi-eye" onclick="togglePwVis('staff-pw-confirm',this)">👁</button>
+      </div>
       <div id="staff-pw-err" style="font-size:12px;color:var(--red);min-height:16px;margin-bottom:4px"></div>
       <button class="btn-main" onclick="submitStaffPassword()">View My Roster</button>
       <div class="manual-link" onclick="backToNameStep()" style="margin-top:10px">← Back</div>
@@ -1162,6 +1178,44 @@ function hideConnBanner(){const b=document.getElementById('conn-banner');if(b)b.
 function retrySync(){hideConnBanner();syncData(false);}
 
 // ── SYNC ──
+// ── Add-to-Home-Screen nudge banner ─────────────────────────────
+let deferredInstallPrompt=null;
+function isStandaloneMode(){
+  return window.matchMedia('(display-mode: standalone)').matches || window.navigator.standalone===true;
+}
+window.addEventListener('beforeinstallprompt',(e)=>{
+  e.preventDefault();
+  deferredInstallPrompt=e;
+});
+function maybeShowInstallBanner(){
+  if(isStandaloneMode())return; // already installed, running as the PWA
+  if(S.guestMode)return; // don't nudge anonymous public-view visitors
+  const dismissedUntil=Number(localStorage.getItem('mfd_install_banner_dismissed')||0);
+  if(Date.now()<dismissedUntil)return;
+  const isIOS=/iPad|iPhone|iPod/.test(navigator.userAgent)&&!window.MSStream;
+  const sub=document.getElementById('install-banner-sub');
+  const btn=document.getElementById('install-banner-btn');
+  if(isIOS){
+    sub.textContent='तल Share बटन (⬆️) थिचेर "Add to Home Screen" छान्नुहोस्।';
+    btn.style.display='none';
+  }else{
+    sub.textContent='छिटो खोल्न र offline पनि चलाउन install गर्नुहोस्।';
+    btn.style.display='';
+  }
+  document.getElementById('install-banner').style.display='flex';
+}
+async function triggerInstall(){
+  if(!deferredInstallPrompt)return;
+  deferredInstallPrompt.prompt();
+  try{ await deferredInstallPrompt.userChoice; }catch(e){}
+  deferredInstallPrompt=null;
+  document.getElementById('install-banner').style.display='none';
+}
+function dismissInstallBanner(){
+  document.getElementById('install-banner').style.display='none';
+  // don't ask again for 3 days
+  localStorage.setItem('mfd_install_banner_dismissed', String(Date.now()+3*24*60*60*1000));
+}
 async function syncData(silent=false){
   if(!S.scriptUrl){hideLoading();return;}
   showToast('Syncing roster data...',10);
@@ -1320,11 +1374,11 @@ async function proceedToPasswordStep(){
   if(_pendingLoginHasPassword){
     document.getElementById('staff-pw-label').textContent='🔒 Enter your password, '+name;
     document.getElementById('staff-pw-hint').textContent='';
-    document.getElementById('staff-pw-confirm').style.display='none';
+    document.getElementById('staff-pw-confirm-wrap').style.display='none';
   }else{
     document.getElementById('staff-pw-label').textContent='🆕 Create your password, '+name;
     document.getElementById('staff-pw-hint').textContent='यो पहिलो पटक login हो — आफ्नो password बनाउनुहोस् (कम्तिमा ४ अक्षर)। अर्को पटक देखि यही password चाहिन्छ।';
-    document.getElementById('staff-pw-confirm').style.display='block';
+    document.getElementById('staff-pw-confirm-wrap').style.display='block';
   }
 }
 function backToNameStep(){
@@ -1392,6 +1446,7 @@ function enterApp(){
   document.getElementById('today-sec-hdr').textContent='All '+SEC_LABEL[sec]+' staff on duty';
   switchScreen('app');switchTab('today',document.querySelector('.tab'));
   renderToday();renderMyDuties();renderCalendar();renderFullRoster();updateNotifIcon();
+  setTimeout(maybeShowInstallBanner,1800);
 }
 function logout(){
   if(!confirm('Logout?'))return;
@@ -1834,12 +1889,18 @@ tr.tr-today td{background:#dbeeff!important}
 td.c-off{color:#999}
 td.c-star{color:#7c3aed;font-weight:700}
 td.c-none{color:#bbb}
+.legend{margin-top:5px;column-count:4;column-gap:10px;font-size:6.5px;line-height:1.5}
+.legend b{color:#0f2942}
 @media print{button{display:none}}
 </style>
 </head><body>
 ${officialLetterheadHtml(secTitle)}
 <div class="meta"><b>Month:</b> ${np} (${en}) &nbsp;|&nbsp; <b>Total Staff:</b> ${allStaff.length} &nbsp;|&nbsp; <b>Generated:</b> ${new Date().toLocaleString()}</div>
 <table><thead><tr>${h1}</tr><tr>${h2}</tr></thead><tbody>${tbody}</tbody></table>
+<div class="legend">
+${[['MF','Morning Forecaster (6AM–12PM)'],['AF','Afternoon Forecaster (12PM–6PM)'],['AFN★','Day Night Forecaster (12PM–next 12PM)'],['NMF★','Night Morning Forecaster (prev 12PM–today 12PM)'],['MA','Morning Aviation Forecaster (6AM–12PM)'],['DA','Day Aviation Forecaster (12PM–6PM)'],['SM','Sr. Met. Morning (6AM–12PM)'],['SA','Sr. Met. Afternoon (12PM–6PM)'],['SD','Sr. Met. Day (12PM–6PM)'],['SMA','Sr. Met. Aviation Morning (6AM–12PM)'],['SDA','Sr. Met. Aviation Day (12PM–6PM)'],['MO','Morning Observer (6AM–12PM)'],['AO','Afternoon Observer (12PM–6PM)'],['AON★','Day Night Observer (12PM–next 12PM)'],['NMO★','Night Morning Observer (prev 12PM–today 12PM)'],['MO1','Morning Supporting Observer (6AM–12PM)'],['AO2','Afternoon Supporting Observer (12PM–6PM)'],['M1','Morning Supporter (6AM–12PM)'],['A1','Afternoon Supporter (12PM–6PM)'],['Off/xx','Duty Off']]
+  .map(([code,desc])=>`<div><b>${code}</b> — ${desc}</div>`).join('')}
+</div>
 <script>window.onload=()=>setTimeout(()=>window.print(),150);<\/script>
 </body></html>`;
 
@@ -2761,7 +2822,18 @@ async function deleteMonth(role,name){
   logAudit('Delete Month', `${RLABEL[role]||role} — ${name}`);if(!S.rosters[role])return;
   S.rosters[role].months=(S.rosters[role].months||[]).filter(m=>m.name!==name);
   localStorage.setItem('mfd_rosters',JSON.stringify(S.rosters));
-  if(S.scriptUrl){showToast('Removing...',40);try{await fetch(S.scriptUrl,{method:'POST',mode:'no-cors',body:JSON.stringify({action:'saveRosters',rosters:S.rosters,staff:S.staff})});showToast('✅ Deleted!',100);setTimeout(hideToast,1500);}catch(e){hideToast();}}
+  if(S.scriptUrl){
+    showToast('Removing...',40);
+    try{
+      const res=await fetch(S.scriptUrl,{method:'POST',body:JSON.stringify({
+        action:'saveRosters',rosters:S.rosters,staff:S.staff,
+        token:S.sessionToken||localStorage.getItem('mfd_session_token')||''
+      })});
+      const d=await res.json();
+      if(d.success===false){hideToast();alert('❌ Delete failed on server: '+(d.error||'Unknown error')+'\nIt was removed locally, but reappear after next sync — try again.');}
+      else{showToast('✅ Deleted!',100);setTimeout(hideToast,1500);}
+    }catch(e){hideToast();}
+  }
   renderMonthsList();
 }
 function addDayToManual(){S.manualDays.push({date:'',duties:{}});renderManualDays();}
@@ -2809,8 +2881,20 @@ function updateDuty(role,monthName,iso,name,val){
 async function saveEditedRoster(){
   localStorage.setItem('mfd_rosters',JSON.stringify(S.rosters));
   if(!S.scriptUrl){alert('Saved locally!');return;}
-  try{await fetch(S.scriptUrl,{method:'POST',mode:'no-cors',body:JSON.stringify({action:'saveRosters',rosters:S.rosters,staff:S.staff})});alert('✅ Changes saved!');}
-  catch(e){alert('Saved locally.');}
+  try{
+    const res=await fetch(S.scriptUrl,{method:'POST',body:JSON.stringify({
+      action:'saveRosters',rosters:S.rosters,staff:S.staff,
+      token:S.sessionToken||localStorage.getItem('mfd_session_token')||''
+    })});
+    const d=await res.json();
+    if(d.success===false){
+      alert('❌ Save failed: '+(d.error||'Unknown error')+'\n\nChanges are kept locally in this browser only — try Save again, or refresh if it keeps failing.');
+      return;
+    }
+    alert('✅ Changes saved!');
+  }catch(e){
+    alert('⚠️ Could not reach server — changes saved locally only. Check your connection and try Save again.');
+  }
 }
 
 // ── ADMIN ADMINS ──
@@ -3321,7 +3405,7 @@ function generateMyDutyPDF(bsY,bsM){
     const dt=new Date(iso);
     const off=!shift||shift==='xx'||shift==='XX';
     return`<tr style="border-bottom:1px solid #ddd">
-      <td style="padding:5px 8px">${iso}</td>
+      <td style="padding:5px 8px">${toNepali(iso)} <span style="color:#999;font-size:10px">(${dt.getDate()}/${dt.getMonth()+1})</span></td>
       <td style="padding:5px 8px">${DAYS_NP?.[dt.getDay()]||''}</td>
       <td style="padding:5px 8px;font-weight:600;color:${off?'#888':'#1a3a5c'}">${off?'Day Off':shift}</td>
       <td style="padding:5px 8px;font-size:11px;color:#555">${off?'':dutyLabel(shift)}</td>
@@ -3335,15 +3419,15 @@ function generateMyDutyPDF(bsY,bsM){
   <table style="margin-bottom:16px;font-size:13px"><tr><td><b>Staff Name:</b></td><td>${name}</td><td><b>Role:</b></td><td>${RLABEL?.[role]||role}</td></tr>
   <tr><td><b>Month:</b></td><td>${month.name||''}</td><td><b>Section:</b></td><td>${SEC_LABEL?.[S.user.section]||''}</td></tr>
   <tr><td><b>Generated:</b></td><td colspan="3">${new Date().toLocaleString()}</td></tr></table>
-  <div class="summary">
+  <h2 style="color:#1a3a5c;font-size:15px">Day-by-Day Details</h2>
+  <table><tr><th>Date</th><th>Day</th><th>Shift</th><th>Description</th></tr>${rows}</table>
+  <div class="summary" style="margin-top:20px">
     <div class="sum-card"><div class="num">${days.length}</div><div class="lbl">Total Days</div></div>
     <div class="sum-card"><div class="num">${totalDuty}</div><div class="lbl">Duty Days</div></div>
     <div class="sum-card"><div class="num">${totalLeave}</div><div class="lbl">Leave Days</div></div>
   </div>
   <h2 style="color:#1a3a5c;font-size:15px">Duty Summary</h2>
   <table style="width:auto;margin-bottom:20px"><tr><th>Shift</th><th>Days</th></tr>${summaryRows}</table>
-  <h2 style="color:#1a3a5c;font-size:15px">Day-by-Day Details</h2>
-  <table><tr><th>Date</th><th>Day</th><th>Shift</th><th>Description</th></tr>${rows}</table>
   <div style="margin-top:20px;font-size:11px;color:#888;text-align:center">MFD Duty Roster App — Department of Hydrology and Meteorology, Nepal</div>
   <script>window.onload=()=>setTimeout(()=>window.print(),100);<\/script>
   </body></html>`;
@@ -3711,6 +3795,7 @@ function registerSW(){
 }
 // ── Track PWA installs (Add to Home Screen) so admin can see who installed the app ──
 window.addEventListener('appinstalled',()=>{
+  const ib=document.getElementById('install-banner');if(ib)ib.style.display='none';
   if(!S.scriptUrl)return;
   // 'appinstalled' can fire more than once for the same install on some Android/Chrome
   // versions — only log it once per device so the admin list doesn't get duplicate rows.
