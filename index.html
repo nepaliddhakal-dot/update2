@@ -85,6 +85,11 @@ input,select,textarea{font-family:'Inter',sans-serif}
 .form-field{display:flex;flex-direction:column;gap:6px}
 .fl{font-size:11px;font-weight:600;letter-spacing:1px;text-transform:uppercase;color:var(--text3)}
 .fi{background:var(--card2);border:1.5px solid var(--border);color:var(--text);padding:12px 14px;border-radius:var(--radius);outline:none;font-size:14px;transition:border-color .2s;width:100%}
+.time-picker{display:inline-flex;align-items:center;gap:4px;background:var(--card2);border:1.5px solid var(--border);border-radius:var(--radius);padding:6px 10px}
+.tp-seg{background:transparent;border:2px solid transparent;color:var(--text);font-size:15px;font-weight:700;padding:5px 6px;border-radius:7px;outline:none;appearance:none;-webkit-appearance:none;text-align:center;cursor:pointer}
+.tp-seg:focus{background:var(--accent);color:#04202b;border-color:var(--accent)}
+.tp-colon{color:var(--text3);font-weight:700}
+.tp-ampm{font-size:12px;margin-left:2px}
 .fi:focus{border-color:var(--accent)}
 .fi-pw-wrap{position:relative}
 .fi-pw-wrap .fi{padding-right:44px}
@@ -1056,6 +1061,33 @@ function dutyLabel(s){return DUTY_NAMES[s]||s||'Day off';}
 function dutyTime(s){return DUTY_TIMES[s]||'';}
 function toISO(d){return d.toISOString().slice(0,10);}
 function todayISO(){const now=new Date();return toISO(new Date(now.getTime()+(now.getTimezoneOffset()*60000)+((5*60+45)*60000)));}
+
+// ── Segmented time picker (Hour / Minute / AM-PM) — clearly highlights whichever
+// segment is focused, unlike native <input type="time"> which has poor/invisible
+// segment highlighting on some Android/Chrome versions against a dark theme.
+function buildTimePickerHtml(id24,value24){
+  let h12=7,mi=0,ap='AM';
+  if(value24){
+    const[hh,mm]=value24.split(':').map(Number);
+    mi=mm||0; h12=hh%12; if(h12===0)h12=12; ap=hh>=12?'PM':'AM';
+  }
+  const hourOpts=Array.from({length:12},(_,i)=>i+1).map(h=>`<option value="${h}"${h===h12?' selected':''}>${String(h).padStart(2,'0')}</option>`).join('');
+  const minOpts=Array.from({length:60},(_,i)=>i).map(m=>`<option value="${m}"${m===mi?' selected':''}>${String(m).padStart(2,'0')}</option>`).join('');
+  const ampmOpts=['AM','PM'].map(a=>`<option value="${a}"${a===ap?' selected':''}>${a}</option>`).join('');
+  return `<div class="time-picker" id="${id24}-picker">
+    <select class="tp-seg" id="${id24}-h">${hourOpts}</select>
+    <span class="tp-colon">:</span>
+    <select class="tp-seg" id="${id24}-m">${minOpts}</select>
+    <select class="tp-seg tp-ampm" id="${id24}-ap">${ampmOpts}</select>
+  </div>`;
+}
+function readTimePicker24(id24){
+  const hEl=document.getElementById(id24+'-h'),mEl=document.getElementById(id24+'-m'),apEl=document.getElementById(id24+'-ap');
+  if(!hEl)return'';
+  let h=parseInt(hEl.value,10);
+  if(apEl.value==='AM'){if(h===12)h=0;}else{if(h!==12)h+=12;}
+  return String(h).padStart(2,'0')+':'+String(mEl.value).padStart(2,'0');
+}
 
 // ── NEPALI DATE ENGINE ──
 const NP_MONTHS=['बैशाख','जेठ','असार','साउन','भदौ','असोज','कार्तिक','मंसिर','पुष','माघ','फागुन','चैत'];
@@ -2308,7 +2340,7 @@ function showCalModal(iso){
     <textarea id="cal-note-input" class="fi" rows="2" placeholder="यहाँ नोट लेख्नुहोस्..." style="font-size:12px;resize:none">${existingNote}</textarea>
     <div style="margin-top:8px">
       <label style="font-size:11px;font-weight:600;color:var(--text2);display:block;margin-bottom:4px">⏰ Reminder Time <span style="font-size:9px;font-weight:400;color:var(--text3)">(optional)</span></label>
-      <input type="time" id="cal-reminder-time" class="fi" value="${existingReminder}" style="font-size:13px;width:140px;padding:8px 10px"/>
+      ${buildTimePickerHtml('cal-reminder-time',existingReminder)}
       ${existingReminder?`<div style="font-size:10px;color:var(--yellow);margin-top:3px">⏰ ${existingReminder} मा notification आउनेछ</div>`:''}
     </div>
     <div style="display:flex;gap:6px;margin-top:8px">
@@ -2352,7 +2384,7 @@ async function saveCalNote(iso){
   const noteKey='note_'+(S.user?S.user.name:'guest')+'_'+iso;
   const reminderKey='reminder_'+(S.user?S.user.name:'guest')+'_'+iso;
   const val=document.getElementById('cal-note-input').value.trim();
-  const reminderTime=document.getElementById('cal-reminder-time').value;
+  const reminderTime=readTimePicker24('cal-reminder-time');
   if(val){localStorage.setItem(noteKey,val);}
   else{localStorage.removeItem(noteKey);}
   if(reminderTime){localStorage.setItem(reminderKey,reminderTime);}
