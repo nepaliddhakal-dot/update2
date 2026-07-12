@@ -438,7 +438,7 @@ textarea.fi{resize:vertical;min-height:80px}
     <div class="tab-panel active" id="tab-today">
       <div class="today-date-hdr">
         <div class="tdh-month" id="today-month-line">--</div>
-        <div><span class="tdh-date" id="today-date-line">--</span><span class="tdh-nepali" id="today-nepali-line"></span></div>
+        <div><span class="tdh-nepali" id="today-nepali-line"></span><span class="tdh-date" id="today-date-line">--</span></div>
       </div>
       <div class="my-shift-card">
         <div class="msc-label" id="msc-label">Your duty today</div>
@@ -1060,7 +1060,19 @@ function isOff(s){return!s||s==='xx'||s==='XX';}
 function dutyLabel(s){return DUTY_NAMES[s]||s||'Day off';}
 function dutyTime(s){return DUTY_TIMES[s]||'';}
 function toISO(d){return d.toISOString().slice(0,10);}
-function todayISO(){const now=new Date();return toISO(new Date(now.getTime()+(now.getTimezoneOffset()*60000)+((5*60+45)*60000)));}
+function todayISO(){
+  // Always compute "today" as Nepal's wall-clock date, regardless of the phone's own
+  // timezone setting — same approach the backend's getTodayNepal() already uses correctly.
+  // (Previous version cancelled itself out when the phone's timezone was already NPT+5:45,
+  // leaving the raw UTC date, so the app only rolled to a new day at UTC midnight — i.e.
+  // 5:45 AM Nepal time — instead of Nepal's actual midnight.)
+  return new Date(Date.now()+(5*60+45)*60000).toISOString().slice(0,10);
+}
+// Same idea, but returns the shifted Date object so callers can read out other fields
+// (day-of-week, hour, etc.) — always read it back with the UTC getters (getUTCDay(),
+// getUTCMonth(), etc.), never the local ones, or the phone's own timezone gets applied
+// on top and shifts it again.
+function nowNepal(){ return new Date(Date.now()+(5*60+45)*60000); }
 
 // ── Segmented time picker (Hour / Minute / AM-PM) — clearly highlights whichever
 // segment is focused, unlike native <input type="time"> which has poor/invisible
@@ -1526,11 +1538,11 @@ if(tab==='audit'){loadAuditLog();}
 // ── TODAY TAB ──
 function renderToday(){
   if(!S.user)return;
-  const now=new Date(new Date().getTime()+(new Date().getTimezoneOffset()*60000)+((5*60+45)*60000));
+  const now=nowNepal();
   const iso=todayISO();
-  document.getElementById('today-month-line').textContent=MONTHS[now.getMonth()]+' '+now.getFullYear();
-  document.getElementById('today-date-line').textContent=DAYS[now.getDay()]+', '+iso;
-  document.getElementById('today-nepali-line').textContent=' · '+toNepali(iso);
+  document.getElementById('today-month-line').textContent=MONTHS[now.getUTCMonth()]+' '+now.getUTCFullYear();
+  document.getElementById('today-date-line').textContent=' · '+DAYS[now.getUTCDay()]+', '+MONTHS[now.getUTCMonth()]+'-'+now.getUTCDate();
+  document.getElementById('today-nepali-line').textContent=DAYS_NP[now.getUTCDay()]+'वार '+toNepali(iso);
   const shift=getDuty(iso,S.user.name,S.user.role);
   // Update middle duty banner in header
   const ahMid=document.getElementById('ah-mid');
@@ -1586,8 +1598,8 @@ function renderMyDuties(){
   const bsY=S.mdBsYear,bsM=S.mdBsMonth;
   const{np,en}=buildBsHeader(bsY,bsM);
   document.getElementById('md-month-title').textContent=np+'  ('+en+')';
-  const nowD=new Date(new Date().getTime()+(new Date().getTimezoneOffset()*60000)+((5*60+45)*60000));
-  document.getElementById('md-today-en').textContent=DAYS[nowD.getDay()]+' '+nowD.getDate()+'/'+(nowD.getMonth()+1)+'/'+nowD.getFullYear();
+  const nowD=nowNepal();
+  document.getElementById('md-today-en').textContent=DAYS[nowD.getUTCDay()]+' '+nowD.getUTCDate()+'/'+(nowD.getUTCMonth()+1)+'/'+nowD.getUTCFullYear();
   document.getElementById('md-today-np').textContent=toNepali(todayISO());
   const bsDays=bsMonthDays(bsY,bsM);const todayStr=todayISO();
   const days=[];
