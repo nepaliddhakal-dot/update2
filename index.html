@@ -89,6 +89,7 @@ input,select,textarea{font-family:'Inter',sans-serif}
 .tp-seg{background:transparent;border:2px solid transparent;color:var(--text);font-size:15px;font-weight:700;padding:5px 6px;border-radius:7px;outline:none;appearance:none;-webkit-appearance:none;text-align:center;cursor:pointer}
 .tp-seg:focus{background:var(--accent);color:#04202b;border-color:var(--accent)}
 .tp-colon{color:var(--text3);font-weight:700}
+.tp-clock{font-size:15px;margin-right:2px;opacity:.85}
 .tp-ampm{font-size:12px;margin-left:2px}
 .fi:focus{border-color:var(--accent)}
 .fi-pw-wrap{position:relative}
@@ -129,8 +130,8 @@ input,select,textarea{font-family:'Inter',sans-serif}
 .tab-panel.active{display:flex}
 .today-date-hdr{padding:12px 16px 8px;flex-shrink:0}
 .tdh-month{font-size:11px;color:var(--text2);margin-bottom:2px}
-.tdh-date{font-size:18px;font-weight:700;color:var(--text)}
-.tdh-nepali{font-size:12px;color:var(--text2);margin-left:6px;font-weight:400}
+.tdh-date{font-size:16px;font-weight:400;color:var(--text2)}
+.tdh-nepali{font-size:18px;color:var(--text);font-weight:700}
 .my-shift-card{margin:0 12px 12px;background:var(--card2);border:1px solid var(--border2);border-radius:var(--radius);padding:20px;text-align:center;flex-shrink:0}
 .msc-label{font-size:11px;color:var(--text2);margin-bottom:8px}
 .msc-code{font-size:42px;font-weight:700;line-height:1;margin-bottom:4px}
@@ -1087,6 +1088,7 @@ function buildTimePickerHtml(id24,value24){
   const minOpts=Array.from({length:60},(_,i)=>i).map(m=>`<option value="${m}"${m===mi?' selected':''}>${String(m).padStart(2,'0')}</option>`).join('');
   const ampmOpts=['AM','PM'].map(a=>`<option value="${a}"${a===ap?' selected':''}>${a}</option>`).join('');
   return `<div class="time-picker" id="${id24}-picker">
+    <span class="tp-clock">🕐</span>
     <select class="tp-seg" id="${id24}-h">${hourOpts}</select>
     <span class="tp-colon">:</span>
     <select class="tp-seg" id="${id24}-m">${minOpts}</select>
@@ -1540,7 +1542,8 @@ function renderToday(){
   if(!S.user)return;
   const now=nowNepal();
   const iso=todayISO();
-  document.getElementById('today-month-line').textContent=MONTHS[now.getUTCMonth()]+' '+now.getUTCFullYear();
+  const{bsY,bsM}=adToBs(iso);
+  document.getElementById('today-month-line').textContent=NP_MONTHS[bsM]+' '+toNpNum(bsY);
   document.getElementById('today-date-line').textContent=' · '+DAYS[now.getUTCDay()]+', '+MONTHS[now.getUTCMonth()]+'-'+now.getUTCDate();
   document.getElementById('today-nepali-line').textContent=DAYS_NP[now.getUTCDay()]+'वार '+toNepali(iso);
   const shift=getDuty(iso,S.user.name,S.user.role);
