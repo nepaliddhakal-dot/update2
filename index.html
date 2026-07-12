@@ -85,12 +85,20 @@ input,select,textarea{font-family:'Inter',sans-serif}
 .form-field{display:flex;flex-direction:column;gap:6px}
 .fl{font-size:11px;font-weight:600;letter-spacing:1px;text-transform:uppercase;color:var(--text3)}
 .fi{background:var(--card2);border:1.5px solid var(--border);color:var(--text);padding:12px 14px;border-radius:var(--radius);outline:none;font-size:14px;transition:border-color .2s;width:100%}
-.time-picker{display:inline-flex;align-items:center;gap:4px;background:var(--card2);border:1.5px solid var(--border);border-radius:var(--radius);padding:6px 10px}
-.tp-seg{background:transparent;border:2px solid transparent;color:var(--text);font-size:15px;font-weight:700;padding:5px 6px;border-radius:7px;outline:none;appearance:none;-webkit-appearance:none;text-align:center;cursor:pointer}
-.tp-seg:focus{background:var(--accent);color:#04202b;border-color:var(--accent)}
-.tp-colon{color:var(--text3);font-weight:700}
-.tp-clock{font-size:15px;margin-right:2px;opacity:.85}
-.tp-ampm{font-size:12px;margin-left:2px}
+/* Clock-dial time picker — mimics the native Android "Set alarm" style */
+.tpv2{background:var(--card2);border:1.5px solid var(--border);border-radius:var(--radius);padding:14px;display:flex;flex-direction:column;align-items:center;gap:14px}
+.tpv2-digital{display:flex;align-items:center;justify-content:center;gap:2px}
+.tpv2-h,.tpv2-m{font-size:34px;font-weight:700;color:var(--text3);padding:2px 6px;border-radius:8px;cursor:pointer;line-height:1}
+.tpv2-h.active,.tpv2-m.active{color:var(--accent);background:rgba(56,189,248,.12)}
+.tpv2-colon{font-size:34px;font-weight:700;color:var(--text3);line-height:1}
+.tpv2-ampm{display:flex;flex-direction:column;gap:2px;margin-left:8px;font-size:12px;font-weight:700}
+.tpv2-ap-btn{padding:3px 8px;border-radius:6px;color:var(--text3);cursor:pointer}
+.tpv2-ap-btn.active{color:var(--accent);background:rgba(56,189,248,.12)}
+.tpv2-face{position:relative;width:220px;height:220px;max-width:80vw;max-height:80vw;border-radius:50%;background:var(--card3,var(--bg3));border:1px solid var(--border)}
+.tpv2-num{position:absolute;width:32px;height:32px;margin:-16px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:13px;font-weight:600;color:var(--text2);cursor:pointer;z-index:2;user-select:none}
+.tpv2-num.sel{color:#04202b;font-weight:700}
+.tpv2-hand{position:absolute;left:50%;top:50%;height:2px;background:var(--accent);transform-origin:0 50%;z-index:1}
+.tpv2-knob{position:absolute;width:34px;height:34px;margin:-17px;border-radius:50%;background:var(--accent);z-index:1;pointer-events:none}
 .fi:focus{border-color:var(--accent)}
 .fi-pw-wrap{position:relative}
 .fi-pw-wrap .fi{padding-right:44px}
@@ -1075,33 +1083,101 @@ function todayISO(){
 // on top and shifts it again.
 function nowNepal(){ return new Date(Date.now()+(5*60+45)*60000); }
 
-// ── Segmented time picker (Hour / Minute / AM-PM) — clearly highlights whichever
-// segment is focused, unlike native <input type="time"> which has poor/invisible
-// segment highlighting on some Android/Chrome versions against a dark theme.
+// ── Clock-dial time picker (digital readout + tappable circular dial) —
+// mimics the native Android "Set alarm" style picker. Keeps the same
+// buildTimePickerHtml(id, value)/readTimePicker24(id) contract as before,
+// so nothing that calls these needs to change.
 function buildTimePickerHtml(id24,value24){
   let h12=7,mi=0,ap='AM';
   if(value24){
     const[hh,mm]=value24.split(':').map(Number);
     mi=mm||0; h12=hh%12; if(h12===0)h12=12; ap=hh>=12?'PM':'AM';
   }
-  const hourOpts=Array.from({length:12},(_,i)=>i+1).map(h=>`<option value="${h}"${h===h12?' selected':''}>${String(h).padStart(2,'0')}</option>`).join('');
-  const minOpts=Array.from({length:60},(_,i)=>i).map(m=>`<option value="${m}"${m===mi?' selected':''}>${String(m).padStart(2,'0')}</option>`).join('');
-  const ampmOpts=['AM','PM'].map(a=>`<option value="${a}"${a===ap?' selected':''}>${a}</option>`).join('');
-  return `<div class="time-picker" id="${id24}-picker">
-    <span class="tp-clock">🕐</span>
-    <select class="tp-seg" id="${id24}-h">${hourOpts}</select>
-    <span class="tp-colon">:</span>
-    <select class="tp-seg" id="${id24}-m">${minOpts}</select>
-    <select class="tp-seg tp-ampm" id="${id24}-ap">${ampmOpts}</select>
+  const mi5=Math.round(mi/5)*5%60; // dial snaps to 5-minute marks, like the native picker
+  return `<div class="tpv2" id="${id24}-picker" data-mode="h" data-h="${h12}" data-m="${mi5}" data-ap="${ap}">
+    <div class="tpv2-digital">
+      <span class="tpv2-h active" id="${id24}-hdisp" onclick="tpSwitchMode('${id24}','h')">${String(h12).padStart(2,'0')}</span><span class="tpv2-colon">:</span><span class="tpv2-m" id="${id24}-mdisp" onclick="tpSwitchMode('${id24}','m')">${String(mi5).padStart(2,'0')}</span>
+      <div class="tpv2-ampm">
+        <div class="tpv2-ap-btn${ap==='AM'?' active':''}" id="${id24}-am" onclick="tpSetAmpm('${id24}','AM')">AM</div>
+        <div class="tpv2-ap-btn${ap==='PM'?' active':''}" id="${id24}-pm" onclick="tpSetAmpm('${id24}','PM')">PM</div>
+      </div>
+    </div>
+    <div class="tpv2-face" id="${id24}-face">
+      <div class="tpv2-hand" id="${id24}-hand"></div>
+      <div class="tpv2-knob" id="${id24}-knob"></div>
+    </div>
   </div>`;
 }
-function readTimePicker24(id24){
-  const hEl=document.getElementById(id24+'-h'),mEl=document.getElementById(id24+'-m'),apEl=document.getElementById(id24+'-ap');
-  if(!hEl)return'';
-  let h=parseInt(hEl.value,10);
-  if(apEl.value==='AM'){if(h===12)h=0;}else{if(h!==12)h+=12;}
-  return String(h).padStart(2,'0')+':'+String(mEl.value).padStart(2,'0');
+function tpNumsForMode(mode){
+  return mode==='h'
+    ? Array.from({length:12},(_,i)=>i+1) // 1..12
+    : Array.from({length:12},(_,i)=>i*5); // 0,5,10...55
 }
+function tpRenderDial(id24){
+  const pk=document.getElementById(id24+'-picker'); if(!pk)return;
+  const mode=pk.dataset.mode;
+  const face=document.getElementById(id24+'-face');
+  face.querySelectorAll('.tpv2-num').forEach(n=>n.remove());
+  const nums=tpNumsForMode(mode);
+  const selected=mode==='h'?parseInt(pk.dataset.h,10):parseInt(pk.dataset.m,10);
+  const R=42; // percent radius from center
+  nums.forEach((val,i)=>{
+    const angle=(i/12)*2*Math.PI-Math.PI/2; // 12 o'clock = index 0
+    const x=50+R*Math.cos(angle), y=50+R*Math.sin(angle);
+    const el=document.createElement('div');
+    el.className='tpv2-num'+(val===selected?' sel':'');
+    el.style.left=x+'%'; el.style.top=y+'%';
+    el.textContent=mode==='h'?val:String(val).padStart(2,'0');
+    el.onclick=()=>mode==='h'?tpSelectHour(id24,val):tpSelectMinute(id24,val);
+    face.appendChild(el);
+  });
+  // Position hand + knob to point at the selected value
+  const selIdx=nums.indexOf(selected);
+  const angle=(selIdx/12)*2*Math.PI-Math.PI/2;
+  const hand=document.getElementById(id24+'-hand'), knob=document.getElementById(id24+'-knob');
+  const hx=50+R*Math.cos(angle), hy=50+R*Math.sin(angle);
+  hand.style.width=R+'%';
+  hand.style.transform='rotate('+(angle+Math.PI/2)*(180/Math.PI)+'deg)';
+  knob.style.left=hx+'%'; knob.style.top=hy+'%';
+}
+function tpSwitchMode(id24,mode){
+  const pk=document.getElementById(id24+'-picker'); if(!pk)return;
+  pk.dataset.mode=mode;
+  document.getElementById(id24+'-hdisp').classList.toggle('active',mode==='h');
+  document.getElementById(id24+'-mdisp').classList.toggle('active',mode==='m');
+  tpRenderDial(id24);
+}
+function tpSelectHour(id24,h){
+  const pk=document.getElementById(id24+'-picker'); if(!pk)return;
+  pk.dataset.h=h;
+  document.getElementById(id24+'-hdisp').textContent=String(h).padStart(2,'0');
+  tpSwitchMode(id24,'m'); // auto-advance to minutes, like the native picker
+}
+function tpSelectMinute(id24,m){
+  const pk=document.getElementById(id24+'-picker'); if(!pk)return;
+  pk.dataset.m=m;
+  document.getElementById(id24+'-mdisp').textContent=String(m).padStart(2,'0');
+  tpRenderDial(id24);
+}
+function tpSetAmpm(id24,ap){
+  const pk=document.getElementById(id24+'-picker'); if(!pk)return;
+  pk.dataset.ap=ap;
+  document.getElementById(id24+'-am').classList.toggle('active',ap==='AM');
+  document.getElementById(id24+'-pm').classList.toggle('active',ap==='PM');
+}
+function readTimePicker24(id24){
+  const pk=document.getElementById(id24+'-picker'); if(!pk)return'';
+  let h=parseInt(pk.dataset.h,10);
+  const m=parseInt(pk.dataset.m,10);
+  if(pk.dataset.ap==='AM'){if(h===12)h=0;}else{if(h!==12)h+=12;}
+  return String(h).padStart(2,'0')+':'+String(m).padStart(2,'0');
+}
+// Dial numbers are injected after the picker HTML is inserted into the DOM (can't
+// render them inline in buildTimePickerHtml since the element doesn't exist yet).
+// Callers that inject buildTimePickerHtml() output must call this right after.
+function tpInit(id24){ tpRenderDial(id24); }
+
+
 
 // ── NEPALI DATE ENGINE ──
 const NP_MONTHS=['बैशाख','जेठ','असार','साउन','भदौ','असोज','कार्तिक','मंसिर','पुष','माघ','फागुन','चैत'];
@@ -2393,6 +2469,7 @@ function showCalModal(iso){
 
   document.getElementById('modal-body').innerHTML=html;
   document.getElementById('modal-overlay').classList.add('open');
+  tpInit('cal-reminder-time');
 }
 
 async function saveCalNote(iso){
