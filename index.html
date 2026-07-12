@@ -110,8 +110,10 @@ input,select,textarea{font-family:'Inter',sans-serif}
 .ah-left{display:flex;flex-direction:column;gap:1px;flex-shrink:0}
 .ah-left .welcome{font-size:10px;color:var(--text2);line-height:1}
 .ah-left .uname{font-size:16px;font-weight:800;color:var(--text);line-height:1.2}
-.ah-mid{display:none;align-items:center;justify-content:center;gap:8px;padding:9px 14px;background:var(--card);border-bottom:1px solid var(--border);flex-shrink:0}
+.ah-mid{display:none;flex-direction:column;padding:7px 14px 9px;background:var(--card);border-bottom:1px solid var(--border);flex-shrink:0}
 .ah-mid.day-off{background:var(--green-dim)}
+.ah-mid-meta{display:flex;align-items:center;justify-content:space-between;font-size:10px;color:var(--text3);margin-bottom:4px;font-variant-numeric:tabular-nums}
+.ah-mid-duty{display:flex;align-items:center;justify-content:center;gap:8px}
 .ah-mid .duty-title{font-size:13px;font-weight:700;color:var(--text)}
 .ah-mid .duty-shift{font-size:13px;color:var(--text2)}
 .ah-mid .duty-shift span{color:var(--accent);font-weight:700}
@@ -318,7 +320,7 @@ textarea.fi{resize:vertical;min-height:80px}
 <div id="toast"><span id="toast-msg">Syncing...</span><div id="toast-bar"><div id="toast-fill"></div></div><span id="toast-pct">0%</span></div>
 <div id="update-banner" style="display:none;position:fixed;bottom:70px;left:12px;right:12px;z-index:9000;background:var(--green);color:#071a10;border-radius:var(--radius);padding:12px 16px;align-items:center;justify-content:space-between;gap:12px;box-shadow:0 4px 20px rgba(0,0,0,.4)">
   <span style="font-size:13px;font-weight:600">🔄 New update available!</span>
-  <button onclick="window.location.reload()" style="background:#071a10;color:var(--green);border:none;padding:6px 14px;border-radius:8px;font-size:12px;font-weight:700;cursor:pointer">Update Now</button>
+  <button onclick="localStorage.removeItem('mfd_user');window.location.reload()" style="background:#071a10;color:var(--green);border:none;padding:6px 14px;border-radius:8px;font-size:12px;font-weight:700;cursor:pointer">Update Now</button>
 </div>
 <div id="install-banner" style="display:none;position:fixed;bottom:140px;left:12px;right:12px;z-index:8900;background:var(--card);border:1px solid var(--accent);color:var(--text);border-radius:var(--radius);padding:12px 16px;align-items:center;justify-content:space-between;gap:10px;box-shadow:0 4px 20px rgba(0,0,0,.4)">
   <div style="flex:1;min-width:0">
@@ -428,8 +430,14 @@ textarea.fi{resize:vertical;min-height:80px}
     </div>
   </div>
   <div class="ah-mid" id="ah-mid">
-    <div class="duty-title" id="ah-duty-title">You are on duty today!</div>
-    <div class="duty-shift">Shift: <span id="ah-duty-shift">--</span></div>
+    <div class="ah-mid-meta">
+      <span id="ah-sync-time">🔄 --</span>
+      <span id="ah-live-clock">🕐 --</span>
+    </div>
+    <div class="ah-mid-duty">
+      <div class="duty-title" id="ah-duty-title">You are on duty today!</div>
+      <div class="duty-shift">Shift: <span id="ah-duty-shift">--</span></div>
+    </div>
   </div>
   <div id="section-strip" style="display:none"></div>
   <div id="duty-banner" style="display:none">
@@ -1364,15 +1372,37 @@ async function syncData(silent=false){
     }
     showToast('✅ Sync complete!',100);setTimeout(hideToast,1500);
     hideConnBanner();
+    updateSyncTimeDisplay();
     if(S.user){renderToday();renderMyDuties();renderCalendar();renderFullRoster();}
     populateNameDrop();renderAdminStaff();renderMonthsList();
   }catch(e){
     showToast('📶 Offline — using cached data',100);setTimeout(hideToast,2000);
     const cachedTs=localStorage.getItem('mfd_rosters_ts');
     showConnBanner(cachedTs?('📶 Server unreachable — showing data from '+new Date(cachedTs).toLocaleString()):'📶 Server unreachable and no cached data yet — check your connection');
+    updateSyncTimeDisplay();
     if(S.user){renderToday();renderMyDuties();renderCalendar();renderFullRoster();}
   }
   hideLoading();
+}
+// Shows when the roster data was last successfully synced, and keeps a live-ticking
+// clock running — both sit in the thin status row above "You are on duty today".
+function updateSyncTimeDisplay(){
+  const el=document.getElementById('ah-sync-time'); if(!el)return;
+  const ts=localStorage.getItem('mfd_rosters_ts');
+  if(!ts){el.textContent='🔄 not synced yet';return;}
+  const d=new Date(ts);
+  el.textContent='🔄 '+d.toLocaleTimeString([],{hour:'numeric',minute:'2-digit'});
+}
+let _liveClockStarted=false;
+function startLiveClock(){
+  if(_liveClockStarted)return; _liveClockStarted=true;
+  const tick=()=>{
+    const el=document.getElementById('ah-live-clock'); if(!el)return;
+    const n=nowNepal();
+    let h=n.getUTCHours(), ap=h>=12?'PM':'AM'; h=h%12; if(h===0)h=12;
+    el.textContent='🕐 '+h+':'+String(n.getUTCMinutes()).padStart(2,'0')+':'+String(n.getUTCSeconds()).padStart(2,'0')+' '+ap;
+  };
+  tick(); setInterval(tick,1000);
 }
 function showToast(msg,pct){
   document.getElementById('toast-msg').textContent=msg;
@@ -1534,6 +1564,7 @@ function enterGuestView(){
   S.user=null;S.guestMode=true;
   localStorage.removeItem('mfd_user');
   switchScreen('app');
+  flushPendingInstallLog();
   // Hide everything except Full Roster — guest only sees the public roster + legend
   document.querySelectorAll('.tab-bar .tab').forEach(t=>{if(!t.textContent.includes('Full Roster'))t.style.display='none';});
   const fab=document.getElementById('swap-fab');if(fab)fab.style.display='none';
@@ -1549,6 +1580,9 @@ function enterGuestView(){
 }
 function enterApp(){
   const sec=S.user.section||'avia';
+  flushPendingInstallLog();
+  startLiveClock();
+  updateSyncTimeDisplay();
   document.getElementById('hdr-name').textContent=S.user.name;
   document.getElementById('hdr-role-badge').style.display='';
   document.getElementById('hdr-role-badge').textContent=RICON[S.user.role]+' '+RLABEL[S.user.role];
@@ -3906,6 +3940,11 @@ function registerSW(){
       if(_swRefreshing)return;
       _swRefreshing=true;
       sessionStorage.setItem('mfd_just_updated','1');
+      // Security: force a fresh login after any real update, rather than silently
+      // resuming the old saved session — updates are a natural, expected checkpoint
+      // to re-authenticate, and it means a lost/shared device doesn't stay logged
+      // in indefinitely just because it never happens to get manually logged out.
+      localStorage.removeItem('mfd_user');
       window.location.reload();
     });
   }
@@ -3921,20 +3960,28 @@ function registerSW(){
 // ── Track PWA installs (Add to Home Screen) so admin can see who installed the app ──
 window.addEventListener('appinstalled',()=>{
   const ib=document.getElementById('install-banner');if(ib)ib.style.display='none';
-  if(!S.scriptUrl)return;
-  // 'appinstalled' can fire more than once for the same install on some Android/Chrome
-  // versions — only log it once per device so the admin list doesn't get duplicate rows.
   if(localStorage.getItem('mfd_install_logged'))return;
   localStorage.setItem('mfd_install_logged','1');
+  // Defer attribution instead of logging immediately: "Add to Home Screen" usually
+  // completes BEFORE the person has logged in (S.user is still null at this exact
+  // moment even for real staff who log in seconds later), so logging "Guest" here
+  // mislabels them. Instead, mark it pending and attribute it correctly the first
+  // time they either log in for real or explicitly choose Guest View.
+  localStorage.setItem('mfd_install_pending', navigator.userAgent);
+});
+function flushPendingInstallLog(){
+  const ua=localStorage.getItem('mfd_install_pending');
+  if(!ua||!S.scriptUrl)return;
+  localStorage.removeItem('mfd_install_pending');
   const body={
     action:'logAppInstall',
     name:S.user?S.user.name:'Guest',
     role:S.user?RLABEL[S.user.role]:'',
     section:S.user?S.user.section:'',
-    userAgent:navigator.userAgent
+    userAgent:ua
   };
   fetch(S.scriptUrl,{method:'POST',mode:'no-cors',body:JSON.stringify(body)}).catch(()=>{});
-});
+}
 </script>
 </body>
 </html>
