@@ -1584,6 +1584,8 @@ function enterApp(){
   flushPendingInstallLog();
   startLiveClock();
   updateSyncTimeDisplay();
+  updatePendingSwapBadge();
+  flushPendingSwapRequests();
   document.getElementById('hdr-name').textContent=S.user.name;
   document.getElementById('hdr-role-badge').style.display='';
   document.getElementById('hdr-role-badge').textContent=RICON[S.user.role]+' '+RLABEL[S.user.role];
@@ -2682,17 +2684,71 @@ const requested=selVal==='__custom__'
   if(!S.scriptUrl){err.textContent='❌ Script URL not configured';return;}
   err.textContent='⏳ Sending...';
   const tabName=SEC_ABBR[S.user.section||'avia']+'-'+RLABEL[S.user.role];
+  const payload={
+    action:'saveSwapRequest',tabName,user:S.user.name,role:RLABEL[S.user.role],
+    section:S.user.section||'avia',date,currentDuty:current,requestedDuty:requested,swapWithName,message,
+    timestamp:new Date().toISOString()
+  };
+  if(!navigator.onLine){
+    queuePendingSwapRequest(payload);
+    document.getElementById('swap-modal').style.display='none';
+    alert('📴 अहिले Internet छैन — तपाईंको request save भयो, connection फर्किएपिच्छे आफै पठाइनेछ।');
+    return;
+  }
   try{
-    const res=await fetch(S.scriptUrl,{method:'POST',body:JSON.stringify({
-      action:'saveSwapRequest',tabName,user:S.user.name,role:RLABEL[S.user.role],
-      section:S.user.section||'avia',date,currentDuty:current,requestedDuty:requested,swapWithName,message,
-      timestamp:new Date().toISOString()
-    })});
+    const res=await fetch(S.scriptUrl,{method:'POST',body:JSON.stringify(payload)});
     const d=await res.json();
     if(d.success===false){err.textContent='❌ '+(d.error||'Failed to send.');return;}
     document.getElementById('swap-modal').style.display='none';
     alert(swapWithName?'✅ Request sent! '+swapWithName+' लाई पनि सूचित गरियो, र Admin लाई अनुरोध पठाइयो।':'✅ Request sent! Admin लाई अनुरोध पठाइयो।');
-  }catch(e){err.textContent='❌ Failed to send. Check connection.';}
+  }catch(e){
+    // Fetch failed even though navigator.onLine said we're connected (flaky connection,
+    // not a clean "offline" state) — still queue it rather than losing the request.
+    queuePendingSwapRequest(payload);
+    document.getElementById('swap-modal').style.display='none';
+    alert('📴 पठाउन सकिएन (weak connection) — तपाईंको request save भयो, connection फर्किएपिच्छे आफै पठाइनेछ।');
+  }
+}
+// ── Offline queue for swap requests — so a request isn't silently lost when
+// submitted with no/flaky connectivity (common for staff on-site at TIA/stations).
+function queuePendingSwapRequest(payload){
+  const q=JSON.parse(localStorage.getItem('mfd_pending_swap_requests')||'[]');
+  q.push(payload);
+  localStorage.setItem('mfd_pending_swap_requests',JSON.stringify(q));
+  updatePendingSwapBadge();
+}
+function updatePendingSwapBadge(){
+  const q=JSON.parse(localStorage.getItem('mfd_pending_swap_requests')||'[]');
+  const fab=document.getElementById('swap-fab'); if(!fab)return;
+  let badge=document.getElementById('swap-fab-badge');
+  if(q.length){
+    if(!badge){
+      badge=document.createElement('span');
+      badge.id='swap-fab-badge';
+      badge.style.cssText='margin-left:6px;background:#f59e0b;color:#1a1a1a;font-size:10px;font-weight:800;padding:2px 7px;border-radius:10px';
+      fab.appendChild(badge);
+    }
+    badge.textContent=q.length+' pending sync';
+  } else if(badge){ badge.remove(); }
+}
+async function flushPendingSwapRequests(){
+  const q=JSON.parse(localStorage.getItem('mfd_pending_swap_requests')||'[]');
+  if(!q.length||!S.scriptUrl)return;
+  const remaining=[];
+  for(const payload of q){
+    try{
+      const res=await fetch(S.scriptUrl,{method:'POST',body:JSON.stringify(payload)});
+      const d=await res.json();
+      if(d.success===false)remaining.push(payload); // real rejection (e.g. dup) — drop retry loop but keep for visibility
+    }catch(e){ remaining.push(payload); } // still offline/unreachable — keep trying later
+  }
+  localStorage.setItem('mfd_pending_swap_requests',JSON.stringify(remaining));
+  updatePendingSwapBadge();
+  if(remaining.length<q.length){
+    showToast('✅ '+(q.length-remaining.length)+' saved request(s) sent!',100);
+    setTimeout(hideToast,2000);
+    if(S.user&&typeof loadMyRequests==='function')loadMyRequests();
+  }
 }
 async function submitBulkSwapRequest(){
   const startD=document.getElementById('swap-bulk-start').value;
@@ -2712,16 +2768,27 @@ async function submitBulkSwapRequest(){
   if(!S.scriptUrl){err.textContent='❌ Script URL not configured';return;}
   if(!confirm(dates.length+' दिनको (— '+dates[0]+' देखि '+dates[dates.length-1]+' सम्म —) "'+requested+'" अनुरोध एकैपटक पठाउने हो?'))return;
   err.textContent='⏳ Sending '+dates.length+' days...';
+  const payload={
+    action:'saveBulkSwapRequest',user:S.user.name,role:RLABEL[S.user.role],
+    section:S.user.section||'avia',dates,requestedDuty:requested,message,
+    timestamp:new Date().toISOString()
+  };
+  if(!navigator.onLine){
+    queuePendingSwapRequest(payload);
+    document.getElementById('swap-modal').style.display='none';
+    alert('📴 अहिले Internet छैन — तपाईंको '+dates.length+' दिनको request save भयो, connection फर्किएपिच्छे आफै पठाइनेछ।');
+    return;
+  }
   try{
-    const res=await fetch(S.scriptUrl,{method:'POST',body:JSON.stringify({
-      action:'saveBulkSwapRequest',user:S.user.name,role:RLABEL[S.user.role],
-      section:S.user.section||'avia',dates,requestedDuty:requested,message,
-      timestamp:new Date().toISOString()
-    })});
+    const res=await fetch(S.scriptUrl,{method:'POST',body:JSON.stringify(payload)});
     const d=await res.json();
     document.getElementById('swap-modal').style.display='none';
     alert('✅ '+(d.daysWritten||dates.length)+' दिनको bulk request पठाइयो! Admin लाई एकैपटक सबै देखिन्छ।');
-  }catch(e){err.textContent='❌ Failed to send. Check connection.';}
+  }catch(e){
+    queuePendingSwapRequest(payload);
+    document.getElementById('swap-modal').style.display='none';
+    alert('📴 पठाउन सकिएन (weak connection) — तपाईंको '+dates.length+' दिनको request save भयो, connection फर्किएपिच्छे आफै पठाइनेछ।');
+  }
 }
 
 // ── ADMIN LOGIN ──
@@ -3959,6 +4026,8 @@ function registerSW(){
   }
 }
 // ── Track PWA installs (Add to Home Screen) so admin can see who installed the app ──
+window.addEventListener('online',()=>{ if(S.user)flushPendingSwapRequests(); });
+
 window.addEventListener('appinstalled',()=>{
   const ib=document.getElementById('install-banner');if(ib)ib.style.display='none';
   if(localStorage.getItem('mfd_install_logged'))return;
