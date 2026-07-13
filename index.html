@@ -1613,6 +1613,8 @@ function enterApp(){
   updateSyncTimeDisplay();
   updatePendingSwapBadge();
   flushPendingSwapRequests();
+  updatePendingHandoverBadge();
+  flushPendingHandoverNotes();
   document.getElementById('hdr-name').textContent=S.user.name;
   document.getElementById('hdr-role-badge').style.display='';
   document.getElementById('hdr-role-badge').textContent=RICON[S.user.role]+' '+RLABEL[S.user.role];
@@ -2672,16 +2674,68 @@ async function submitHandoverNote(){
   if(!note){err.textContent='❌ जानकारी लेख्नुहोस्';return;}
   if(!S.scriptUrl){err.textContent='❌ Script URL not configured';return;}
   err.textContent='⏳ Saving...';
+  const payload={
+    action:'saveHandoverNote',date:todayISO(),author:S.user.name,role:RLABEL[S.user.role],
+    section:S.user.section||'avia',note,addressedTo,addressedToRole,timestamp:new Date().toISOString()
+  };
+  if(!navigator.onLine){
+    queuePendingHandoverNote(payload);
+    document.getElementById('handover-modal').style.display='none';
+    alert('📴 अहिले Internet छैन — तपाईंको note save भयो, connection फर्किएपिच्छे आफै पठाइनेछ।');
+    return;
+  }
   try{
-    const res=await fetch(S.scriptUrl,{method:'POST',body:JSON.stringify({
-      action:'saveHandoverNote',date:todayISO(),author:S.user.name,role:RLABEL[S.user.role],
-      section:S.user.section||'avia',note,addressedTo,addressedToRole,timestamp:new Date().toISOString()
-    })});
+    const res=await fetch(S.scriptUrl,{method:'POST',body:JSON.stringify(payload)});
     const d=await res.json();
     if(d.success===false){err.textContent='❌ '+(d.error||'Failed to save.');return;}
     document.getElementById('handover-modal').style.display='none';
     loadHandoverNotes();
-  }catch(e){err.textContent='❌ Failed to save. Check connection.';}
+  }catch(e){
+    queuePendingHandoverNote(payload);
+    document.getElementById('handover-modal').style.display='none';
+    alert('📴 पठाउन सकिएन (weak connection) — तपाईंको note save भयो, connection फर्किएपिच्छे आफै पठाइनेछ।');
+  }
+}
+// ── Offline queue for handover notes — mirrors the swap-request queue.
+function queuePendingHandoverNote(payload){
+  const q=JSON.parse(localStorage.getItem('mfd_pending_handover_notes')||'[]');
+  q.push(payload);
+  localStorage.setItem('mfd_pending_handover_notes',JSON.stringify(q));
+  updatePendingHandoverBadge();
+}
+function updatePendingHandoverBadge(){
+  const q=JSON.parse(localStorage.getItem('mfd_pending_handover_notes')||'[]');
+  const card=document.getElementById('handover-card'); if(!card)return;
+  const btnRow=card.querySelector('div[style*="justify-content:space-between"]');
+  let badge=document.getElementById('handover-badge');
+  if(q.length){
+    if(!badge&&btnRow){
+      badge=document.createElement('span');
+      badge.id='handover-badge';
+      badge.style.cssText='margin-left:6px;background:#f59e0b;color:#1a1a1a;font-size:10px;font-weight:800;padding:2px 7px;border-radius:10px';
+      btnRow.appendChild(badge);
+    }
+    if(badge)badge.textContent=q.length+' pending sync';
+  } else if(badge){ badge.remove(); }
+}
+async function flushPendingHandoverNotes(){
+  const q=JSON.parse(localStorage.getItem('mfd_pending_handover_notes')||'[]');
+  if(!q.length||!S.scriptUrl)return;
+  const remaining=[];
+  for(const payload of q){
+    try{
+      const res=await fetch(S.scriptUrl,{method:'POST',body:JSON.stringify(payload)});
+      const d=await res.json();
+      if(d.success===false)remaining.push(payload);
+    }catch(e){ remaining.push(payload); }
+  }
+  localStorage.setItem('mfd_pending_handover_notes',JSON.stringify(remaining));
+  updatePendingHandoverBadge();
+  if(remaining.length<q.length){
+    showToast('✅ '+(q.length-remaining.length)+' saved note(s) sent!',100);
+    setTimeout(hideToast,2000);
+    loadHandoverNotes();
+  }
 }
 async function loadHandoverNotes(){
   const card=document.getElementById('handover-card'), el=document.getElementById('handover-notes-list');
@@ -4125,7 +4179,7 @@ function registerSW(){
   }
 }
 // ── Track PWA installs (Add to Home Screen) so admin can see who installed the app ──
-window.addEventListener('online',()=>{ if(S.user)flushPendingSwapRequests(); });
+window.addEventListener('online',()=>{ if(S.user){flushPendingSwapRequests();flushPendingHandoverNotes();} });
 
 window.addEventListener('appinstalled',()=>{
   const ib=document.getElementById('install-banner');if(ib)ib.style.display='none';
