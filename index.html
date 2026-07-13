@@ -465,6 +465,13 @@ textarea.fi{resize:vertical;min-height:80px}
         <div id="msc-time" style="font-size:11px;color:var(--text3);margin-top:6px"></div>
       </div>
       <button id="swap-fab" onclick="openSwapModal()" style="margin:0 12px 10px;background:rgba(56,189,248,.1);border:1px solid rgba(56,189,248,.25);color:var(--accent);font-size:13px;font-weight:600;padding:10px;border-radius:var(--radius);width:calc(100% - 24px)">📨 Request Duty Change / ड्युटि परिवर्तन अनुरोध</button>
+      <div class="handover-card" id="handover-card" style="display:none;margin:0 12px 10px;background:var(--card2);border:1px solid var(--border2);border-radius:var(--radius);padding:12px">
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px">
+          <div style="font-size:13px;font-weight:700;color:var(--text)">📋 Shift Handover Notes</div>
+          <button onclick="openHandoverModal()" style="background:rgba(56,189,248,.15);border:1px solid rgba(56,189,248,.3);color:var(--accent);font-size:11px;font-weight:700;padding:5px 10px;border-radius:8px;cursor:pointer">+ Note</button>
+        </div>
+        <div id="handover-notes-list"><div style="color:var(--text3);font-size:12px">⏳ Loading...</div></div>
+      </div>
       <div class="section-hdr" id="today-sec-hdr">All staff on duty</div>
       <div id="all-duty-list"></div>
       <div id="dashboard-chart" style="margin:10px 12px 0;background:var(--card2);border:1px solid var(--border2);border-radius:var(--radius);padding:12px"></div>
@@ -901,6 +908,26 @@ textarea.fi{resize:vertical;min-height:80px}
         <div id="my-requests-list"><div style="color:var(--text3);font-size:12px">⏳ Loading...</div></div>
       </div>
       <button class="btn-outline" onclick="document.getElementById('swap-modal').style.display='none'" style="width:100%">Cancel</button>
+    </div>
+  </div>
+</div>
+
+<!-- SHIFT HANDOVER NOTE MODAL -->
+<div id="handover-modal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.8);z-index:1001;align-items:flex-end;justify-content:center">
+  <div style="background:var(--bg2);border-radius:20px 20px 0 0;width:100%;max-width:520px;padding:0 0 max(20px,env(safe-area-inset-bottom));max-height:90vh;overflow-y:auto;animation:slideUp .3s ease">
+    <div style="width:36px;height:4px;background:var(--border);border-radius:2px;margin:12px auto 14px"></div>
+    <div style="font-size:16px;font-weight:700;padding:0 18px 12px;border-bottom:1px solid var(--border)">📋 Shift Handover Note</div>
+    <div style="padding:14px 18px;display:flex;flex-direction:column;gap:12px">
+      <div style="background:rgba(56,189,248,.08);border:1px solid rgba(56,189,248,.2);border-radius:10px;padding:10px 12px;font-size:12px;color:var(--text2)">आजको duty सम्बन्धी जानकारी अर्को shift लाई छोड्नुहोस् — जस्तै उपकरणको अवस्था, विशेष जानकारी, आदि।</div>
+      <div class="fg"><label class="fl">NOTE / जानकारी</label><textarea class="fi" id="handover-note-text" rows="4" placeholder="जस्तै: Wind sensor slow भइरहेको छ, ध्यान दिनुहोस्..."></textarea></div>
+      <div class="fg">
+        <label class="fl">👤 ADDRESS TO (optional — specific colleague)</label>
+        <select class="fi" id="handover-addressto"><option value="">-- General note, same role का सबैलाई देखिने --</option></select>
+        <div style="font-size:11px;color:var(--text3);margin-top:4px">छान्नुभयो भने त्यो colleague लाई एउटा personal notification पनि जान्छ।</div>
+      </div>
+      <div id="handover-err" style="font-size:12px;color:var(--red);min-height:16px"></div>
+      <button class="btn-green" onclick="submitHandoverNote()">📋 Save Note</button>
+      <button class="btn-outline" onclick="document.getElementById('handover-modal').style.display='none'" style="width:100%">Cancel</button>
     </div>
   </div>
 </div>
@@ -1653,6 +1680,7 @@ if(tab==='audit'){loadAuditLog();}
 // ── TODAY TAB ──
 function renderToday(){
   if(!S.user)return;
+  loadHandoverNotes();
   const now=nowNepal();
   const iso=todayISO();
   const{bsY,bsM}=adToBs(iso);
@@ -2608,6 +2636,77 @@ function openSwapModal(){
   loadMyRequests();
 }
 function onSwapDateChange(){const iso=document.getElementById('swap-date').value;if(iso)fillSwapForDate(iso);}
+
+// ── Shift Handover Notes ──────────────────────────────────────────
+function openHandoverModal(){
+  if(!S.user){alert('Please login first');return;}
+  document.getElementById('handover-note-text').value='';
+  document.getElementById('handover-err').textContent='';
+  const sel=document.getElementById('handover-addressto');
+  if(sel){
+    // Address-To now lists EVERY staff member across both sections — sender decides
+    // who should privately see it, not limited to their own section/role.
+    const others=(S.staffFlat||[]).filter(s=>s.name!==S.user.name);
+    const bySec={avia:[],weather:[]};
+    others.forEach(s=>{(bySec[s.section]||(bySec[s.section]=[])).push(s);});
+    let opts='<option value="">-- General note, same role का सबैलाई देखिने --</option>';
+    for(const sec of['avia','weather']){
+      if(!bySec[sec]||!bySec[sec].length)continue;
+      opts+=`<optgroup label="${sec==='avia'?'✈️ TIA Aviation Met':'🌦️ Weather Forecasting'}">`+
+        bySec[sec].map(c=>`<option value="${c.name}" data-role="${c.role}">${c.name} (${RLABEL[c.role]})</option>`).join('')+
+        '</optgroup>';
+    }
+    sel.innerHTML=opts;
+  }
+  document.getElementById('handover-modal').style.display='flex';
+}
+async function submitHandoverNote(){
+  const note=document.getElementById('handover-note-text').value.trim();
+  const addressSel=document.getElementById('handover-addressto');
+  const addressedTo=addressSel.value;
+  // The recipient may be in a different section/role than the sender now, so their
+  // actual role (needed to find their FCM token) has to travel with the request —
+  // it can't be assumed to match the sender's own role anymore.
+  const addressedToRole=addressedTo?(addressSel.selectedOptions[0]?.dataset.role||''):'';
+  const err=document.getElementById('handover-err');
+  if(!note){err.textContent='❌ जानकारी लेख्नुहोस्';return;}
+  if(!S.scriptUrl){err.textContent='❌ Script URL not configured';return;}
+  err.textContent='⏳ Saving...';
+  try{
+    const res=await fetch(S.scriptUrl,{method:'POST',body:JSON.stringify({
+      action:'saveHandoverNote',date:todayISO(),author:S.user.name,role:RLABEL[S.user.role],
+      section:S.user.section||'avia',note,addressedTo,addressedToRole,timestamp:new Date().toISOString()
+    })});
+    const d=await res.json();
+    if(d.success===false){err.textContent='❌ '+(d.error||'Failed to save.');return;}
+    document.getElementById('handover-modal').style.display='none';
+    loadHandoverNotes();
+  }catch(e){err.textContent='❌ Failed to save. Check connection.';}
+}
+async function loadHandoverNotes(){
+  const card=document.getElementById('handover-card'), el=document.getElementById('handover-notes-list');
+  if(!card||!el||!S.user||S.guestMode)return;
+  card.style.display='block';
+  el.innerHTML='<div style="color:var(--text3);font-size:12px">⏳ Loading...</div>';
+  try{
+    const res=await fetch(S.scriptUrl+'?action=getHandoverNotes&date='+todayISO()+'&section='+(S.user.section||'avia')+'&role='+encodeURIComponent(RLABEL[S.user.role]||'')+'&name='+encodeURIComponent(S.user.name));
+    const d=await res.json();
+    const notes=(d.data||[]).sort((a,b)=>new Date(b.timestamp)-new Date(a.timestamp));
+    if(!notes.length){el.innerHTML='<div style="color:var(--text3);font-size:12px">आज कुनै handover note छैन।</div>';return;}
+    el.innerHTML=notes.map(n=>{
+      const isPrivate=!!n.addressedTo;
+      const crossContext=isPrivate&&(n.section!==S.user.section||n.role!==RLABEL[S.user.role]);
+      return`<div style="background:var(--bg3);border-radius:8px;padding:8px 10px;margin-bottom:6px;font-size:12px">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:3px">
+        <b>${n.author}${crossContext?` <span style="font-weight:400;color:var(--text3)">(${n.role})</span>`:''}</b>
+        ${isPrivate?`<span style="font-size:10px;color:var(--accent)">🔒 → ${n.addressedTo}</span>`:'<span style="font-size:10px;color:var(--text3)">General</span>'}
+      </div>
+      <div style="color:var(--text2)">${n.note}</div>
+      <div style="font-size:10px;color:var(--text3);margin-top:3px">${n.timestamp?new Date(n.timestamp).toLocaleTimeString([],{hour:'numeric',minute:'2-digit'}):''}</div>
+    </div>`;
+    }).join('');
+  }catch(e){el.innerHTML='<div style="color:var(--red);font-size:12px">Load failed.</div>';}
+}
 function fillSwapForDate(iso){
   const shift=getDuty(iso,S.user.name,S.user.role);
   document.getElementById('swap-current').value=shift===null?'No data':isOff(shift)?'Day Off (xx)':shift;
