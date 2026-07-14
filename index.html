@@ -468,7 +468,14 @@ textarea.fi{resize:vertical;min-height:80px}
       <div class="handover-card" id="handover-card" style="display:none;margin:0 12px 10px;background:var(--card2);border:1px solid var(--border2);border-radius:var(--radius);padding:12px">
         <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px">
           <div style="font-size:13px;font-weight:700;color:var(--text)">📋 Shift Handover Notes</div>
-          <button onclick="openHandoverModal()" style="background:rgba(56,189,248,.15);border:1px solid rgba(56,189,248,.3);color:var(--accent);font-size:11px;font-weight:700;padding:5px 10px;border-radius:8px;cursor:pointer">+ Note</button>
+        <div id="handover-btn-wrap" style="display:flex;align-items:center;gap:6px">
+            <button onclick="openHandoverModal()" style="background:rgba(56,189,248,.15);border:1px solid rgba(56,189,248,.3);color:var(--accent);font-size:11px;font-weight:700;padding:5px 10px;border-radius:8px;cursor:pointer">+ Note</button>
+          </div>
+        </div>
+        <div style="display:flex;align-items:center;justify-content:center;gap:10px;margin-bottom:8px">
+          <button onclick="handoverDateShift(-1)" style="background:none;border:none;color:var(--text3);font-size:16px;cursor:pointer;padding:2px 8px">‹</button>
+          <span id="handover-date-label" style="font-size:11px;color:var(--text2);font-weight:600;min-width:110px;text-align:center">Today</span>
+          <button onclick="handoverDateShift(1)" style="background:none;border:none;color:var(--text3);font-size:16px;cursor:pointer;padding:2px 8px">›</button>
         </div>
         <div id="handover-notes-list"><div style="color:var(--text3);font-size:12px">⏳ Loading...</div></div>
       </div>
@@ -577,6 +584,7 @@ textarea.fi{resize:vertical;min-height:80px}
     <button class="at-btn" onclick="switchAdminTab('report',this)">📄 Report</button>
     <button class="at-btn" onclick="switchAdminTab('tools',this)">🛠️ Tools</button>
     <button class="at-btn" onclick="switchAdminTab('audit',this)">🔍 Audit</button>
+    <button class="at-btn" onclick="switchAdminTab('usage',this)">📈 Usage</button>
   </div>
   <div class="admin-body">
     <div class="admin-panel active" id="ap-upload">
@@ -749,6 +757,15 @@ textarea.fi{resize:vertical;min-height:80px}
       <div class="a-info">कसले के change गर्यो — सबै record यहाँ छ।</div>
       <div id="audit-list" style="margin-top:10px"><div style="color:var(--text3);font-size:13px">Tab खोल्दा load हुन्छ।</div></div>
     </div>
+    <div class="admin-panel" id="ap-usage">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px">
+        <div class="a-card-title">📈 Usage Analytics</div>
+        <button onclick="loadUsageAnalytics()" class="btn-outline" style="padding:5px 12px;font-size:12px">🔄 Refresh</button>
+      </div>
+      <div class="a-info">कसले कति समय app चलायो, कुन tab धेरै हेर्यो, र कति पटक app खोल्यो — यो admin लाई मात्र देखिन्छ, staff लाई देखिँदैन।</div>
+      <div id="usage-totals" style="margin:10px 0"></div>
+      <div id="usage-list" style="margin-top:10px"><div style="color:var(--text3);font-size:13px">Tab खोल्दा load हुन्छ।</div></div>
+    </div>
     <div class="admin-panel" id="ap-notify">
       <div class="a-card-title" style="margin-bottom:8px">📢 Send Announcement</div>
       <div class="a-info">Staff को FCM notification पठाउनुहोस् — sound सहित।</div>
@@ -918,12 +935,21 @@ textarea.fi{resize:vertical;min-height:80px}
     <div style="width:36px;height:4px;background:var(--border);border-radius:2px;margin:12px auto 14px"></div>
     <div style="font-size:16px;font-weight:700;padding:0 18px 12px;border-bottom:1px solid var(--border)">📋 Shift Handover Note</div>
     <div style="padding:14px 18px;display:flex;flex-direction:column;gap:12px">
-      <div style="background:rgba(56,189,248,.08);border:1px solid rgba(56,189,248,.2);border-radius:10px;padding:10px 12px;font-size:12px;color:var(--text2)">आजको duty सम्बन्धी जानकारी अर्को shift लाई छोड्नुहोस् — जस्तै उपकरणको अवस्था, विशेष जानकारी, आदि।</div>
+      <div class="fg"><label class="fl">📅 DATE (कुन दिनको लागि — आज, भोलि, वा जुनसुकै)</label><input class="fi" type="date" id="handover-note-date"/></div>
       <div class="fg"><label class="fl">NOTE / जानकारी</label><textarea class="fi" id="handover-note-text" rows="4" placeholder="जस्तै: Wind sensor slow भइरहेको छ, ध्यान दिनुहोस्..."></textarea></div>
       <div class="fg">
-        <label class="fl">👤 ADDRESS TO (optional — specific colleague)</label>
-        <select class="fi" id="handover-addressto"><option value="">-- General note, same role का सबैलाई देखिने --</option></select>
-        <div style="font-size:11px;color:var(--text3);margin-top:4px">छान्नुभयो भने त्यो colleague लाई एउटा personal notification पनि जान्छ।</div>
+        <label class="fl">👁️ कसले देख्ने?</label>
+        <select class="fi" id="handover-visibility" onchange="onHandoverVisibilityChange()">
+          <option value="role_section">यही Section + यही Role (जस्तै Forecaster ले Forecaster लाई)</option>
+          <option value="role_both">दुबै Section, यही Role (जस्तै सबै Forecaster हरू)</option>
+          <option value="all">सबैलाई (whole app — section/role नभनी)</option>
+          <option value="private">🔒 Private — एक जना specific staff लाई मात्र</option>
+        </select>
+      </div>
+      <div class="fg" id="handover-addressto-wrap" style="display:none">
+        <label class="fl">👤 कस लाई पठाउने</label>
+        <select class="fi" id="handover-addressto"><option value="">-- छान्नुहोस् --</option></select>
+        <div style="font-size:11px;color:var(--text3);margin-top:4px">यो व्यक्तिलाई मात्र देखिन्छ, र personal notification पनि जान्छ।</div>
       </div>
       <div id="handover-err" style="font-size:12px;color:var(--red);min-height:16px"></div>
       <button class="btn-green" onclick="submitHandoverNote()">📋 Save Note</button>
@@ -939,7 +965,30 @@ textarea.fi{resize:vertical;min-height:80px}
     <div style="font-size:12px;color:var(--text3);margin-bottom:14px">दुई section मा काम गर्नुहुन्छ भने, तल दुवै छान्नुहोस् — त्यसपछि जुनसुकै section मा duty change भए पनि तपाईंलाई notification आउँछ।</div>
     <div id="notif-prefs-list" style="display:flex;flex-direction:column;gap:8px;margin-bottom:16px"></div>
     <button class="btn-green" onclick="saveNotifPrefs()" style="width:100%;margin-bottom:8px">💾 Save</button>
+    <div onclick="document.getElementById('notif-prefs-modal').style.display='none';openChangePasswordModal()" style="text-align:center;font-size:12px;color:var(--accent);cursor:pointer;margin-bottom:10px">🔒 Change Password</div>
     <button class="btn-outline" onclick="document.getElementById('notif-prefs-modal').style.display='none'" style="width:100%">Close</button>
+  </div>
+</div>
+
+<!-- CHANGE PASSWORD MODAL -->
+<div id="change-pw-modal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.75);z-index:1002;align-items:center;justify-content:center;padding:16px">
+  <div style="background:var(--card);border-radius:var(--radius);padding:20px;max-width:380px;width:100%">
+    <div style="font-size:15px;font-weight:700;margin-bottom:14px">🔒 Change Password</div>
+    <div class="fi-pw-wrap" style="width:100%;margin-bottom:8px">
+      <input class="fi" type="password" id="chpw-current" placeholder="हालको Password" autocomplete="current-password"/>
+      <button class="fi-eye" onclick="togglePwVis('chpw-current',this)">👁</button>
+    </div>
+    <div class="fi-pw-wrap" style="width:100%;margin-bottom:8px">
+      <input class="fi" type="password" id="chpw-new" placeholder="नयाँ Password (कम्तिमा ४ अक्षर)" autocomplete="new-password"/>
+      <button class="fi-eye" onclick="togglePwVis('chpw-new',this)">👁</button>
+    </div>
+    <div class="fi-pw-wrap" style="width:100%;margin-bottom:8px">
+      <input class="fi" type="password" id="chpw-confirm" placeholder="नयाँ Password फेरि लेख्नुहोस्" autocomplete="new-password"/>
+      <button class="fi-eye" onclick="togglePwVis('chpw-confirm',this)">👁</button>
+    </div>
+    <div id="chpw-err" style="font-size:12px;color:var(--red);min-height:16px;margin-bottom:6px"></div>
+    <button class="btn-green" onclick="submitChangePassword()" style="width:100%;margin-bottom:8px">💾 Update Password</button>
+    <button class="btn-outline" onclick="document.getElementById('change-pw-modal').style.display='none'" style="width:100%">Cancel</button>
   </div>
 </div>
 
@@ -1432,6 +1481,57 @@ function startLiveClock(){
   };
   tick(); setInterval(tick,1000);
 }
+
+// ── Usage tracking (admin-only analytics: session time, per-tab time, open counts) ──
+// Nothing here is visible to staff themselves — only surfaced in the admin panel.
+S.tabTimeAccum={};       // {tabName: totalSeconds}
+S.currentTab=null;
+S.tabEnteredAt=null;
+S.sessionStartMs=null;
+S.usageLogged=false;
+function logAppOpen(){
+  if(!S.scriptUrl||!S.user||S.usageLogged)return;
+  S.usageLogged=true;
+  S.sessionStartMs=Date.now();
+  fetch(S.scriptUrl,{method:'POST',mode:'no-cors',body:JSON.stringify({
+    action:'logAppOpen',name:S.user.name,role:RLABEL[S.user.role],section:S.user.section||'avia',
+    timestamp:new Date().toISOString()
+  })}).catch(()=>{});
+}
+function trackTabTimeBeforeSwitch(newTab){
+  const now=Date.now();
+  if(S.currentTab&&S.tabEnteredAt){
+    const secs=(now-S.tabEnteredAt)/1000;
+    S.tabTimeAccum[S.currentTab]=(S.tabTimeAccum[S.currentTab]||0)+secs;
+  }
+  S.currentTab=newTab;
+  S.tabEnteredAt=now;
+}
+function flushUsageSession(){
+  if(!S.scriptUrl||!S.user||!S.sessionStartMs)return;
+  // Account for time spent on whatever tab is still open right now
+  trackTabTimeBeforeSwitch(S.currentTab);
+  const durationSeconds=Math.round((Date.now()-S.sessionStartMs)/1000);
+  if(durationSeconds<2)return; // not worth logging a near-instant open/close
+  const payload={
+    action:'logUsageSession',name:S.user.name,role:RLABEL[S.user.role],section:S.user.section||'avia',
+    date:todayISO(),durationSeconds,tabTimes:S.tabTimeAccum,timestamp:new Date().toISOString()
+  };
+  // sendBeacon is the reliable option during page unload/hide — a normal fetch can get
+  // cancelled mid-flight once the page starts closing, silently losing the data.
+  const body=JSON.stringify(payload);
+  if(navigator.sendBeacon){
+    navigator.sendBeacon(S.scriptUrl,new Blob([body],{type:'text/plain;charset=UTF-8'}));
+  }else{
+    fetch(S.scriptUrl,{method:'POST',mode:'no-cors',body,keepalive:true}).catch(()=>{});
+  }
+  // Reset so a resumed session (tab becomes visible again) starts a fresh measurement
+  // window instead of double-counting time already flushed.
+  S.sessionStartMs=Date.now();
+  S.tabTimeAccum={};
+}
+document.addEventListener('visibilitychange',()=>{ if(document.visibilityState==='hidden')flushUsageSession(); });
+window.addEventListener('pagehide',flushUsageSession);
 function showToast(msg,pct){
   document.getElementById('toast-msg').textContent=msg;
   document.getElementById('toast-fill').style.width=pct+'%';
@@ -1609,6 +1709,7 @@ function enterGuestView(){
 function enterApp(){
   const sec=S.user.section||'avia';
   flushPendingInstallLog();
+  logAppOpen();
   startLiveClock();
   updateSyncTimeDisplay();
   updatePendingSwapBadge();
@@ -1650,6 +1751,7 @@ function logout(){
 // ── SCREENS / TABS ──
 function switchScreen(s){document.querySelectorAll('.screen').forEach(e=>e.classList.remove('active'));document.getElementById('screen-'+s).classList.add('active');}
 function switchTab(tab,el){
+  trackTabTimeBeforeSwitch(tab);
   document.querySelectorAll('.tab').forEach(t=>t.classList.remove('active'));
   document.querySelectorAll('.tab-panel').forEach(p=>p.classList.remove('active'));
   if(el)el.classList.add('active');
@@ -1677,6 +1779,7 @@ function switchAdminTab(tab,el){
 if(tab==='report'){loadReportMonths();}
 if(tab==='tools'){loadPendingApprovals();loadMonthFilesForReport();loadAppInstalls();}
 if(tab==='audit'){loadAuditLog();}
+if(tab==='usage'){loadUsageAnalytics();}
 }
 
 // ── TODAY TAB ──
@@ -2640,18 +2743,31 @@ function openSwapModal(){
 function onSwapDateChange(){const iso=document.getElementById('swap-date').value;if(iso)fillSwapForDate(iso);}
 
 // ── Shift Handover Notes ──────────────────────────────────────────
+function handoverDateShift(days){
+  const d=new Date((S.handoverDate||todayISO())+'T00:00:00');
+  d.setDate(d.getDate()+days);
+  S.handoverDate=toISO(d);
+  loadHandoverNotes();
+}
+function onHandoverVisibilityChange(){
+  const vis=document.getElementById('handover-visibility').value;
+  document.getElementById('handover-addressto-wrap').style.display=(vis==='private')?'block':'none';
+}
 function openHandoverModal(){
   if(!S.user){alert('Please login first');return;}
   document.getElementById('handover-note-text').value='';
   document.getElementById('handover-err').textContent='';
+  document.getElementById('handover-note-date').value=S.handoverDate||todayISO();
+  document.getElementById('handover-visibility').value='role_section';
+  document.getElementById('handover-addressto-wrap').style.display='none';
   const sel=document.getElementById('handover-addressto');
   if(sel){
-    // Address-To now lists EVERY staff member across both sections — sender decides
+    // Address-To lists EVERY staff member across both sections — sender decides
     // who should privately see it, not limited to their own section/role.
     const others=(S.staffFlat||[]).filter(s=>s.name!==S.user.name);
     const bySec={avia:[],weather:[]};
     others.forEach(s=>{(bySec[s.section]||(bySec[s.section]=[])).push(s);});
-    let opts='<option value="">-- General note, same role का सबैलाई देखिने --</option>';
+    let opts='<option value="">-- छान्नुहोस् --</option>';
     for(const sec of['avia','weather']){
       if(!bySec[sec]||!bySec[sec].length)continue;
       opts+=`<optgroup label="${sec==='avia'?'✈️ TIA Aviation Met':'🌦️ Weather Forecasting'}">`+
@@ -2664,19 +2780,22 @@ function openHandoverModal(){
 }
 async function submitHandoverNote(){
   const note=document.getElementById('handover-note-text').value.trim();
+  const noteDate=document.getElementById('handover-note-date').value||todayISO();
+  const visibility=document.getElementById('handover-visibility').value;
   const addressSel=document.getElementById('handover-addressto');
-  const addressedTo=addressSel.value;
-  // The recipient may be in a different section/role than the sender now, so their
+  const addressedTo=(visibility==='private')?addressSel.value:'';
+  // The recipient may be in a different section/role than the sender, so their
   // actual role (needed to find their FCM token) has to travel with the request —
-  // it can't be assumed to match the sender's own role anymore.
+  // it can't be assumed to match the sender's own role.
   const addressedToRole=addressedTo?(addressSel.selectedOptions[0]?.dataset.role||''):'';
   const err=document.getElementById('handover-err');
   if(!note){err.textContent='❌ जानकारी लेख्नुहोस्';return;}
+  if(visibility==='private'&&!addressedTo){err.textContent='❌ Private छान्नुभयो भने कस लाई पठाउने छान्नुहोस्';return;}
   if(!S.scriptUrl){err.textContent='❌ Script URL not configured';return;}
   err.textContent='⏳ Saving...';
   const payload={
-    action:'saveHandoverNote',date:todayISO(),author:S.user.name,role:RLABEL[S.user.role],
-    section:S.user.section||'avia',note,addressedTo,addressedToRole,timestamp:new Date().toISOString()
+    action:'saveHandoverNote',date:noteDate,author:S.user.name,role:RLABEL[S.user.role],
+    section:S.user.section||'avia',note,visibility,addressedTo,addressedToRole,timestamp:new Date().toISOString()
   };
   if(!navigator.onLine){
     queuePendingHandoverNote(payload);
@@ -2689,6 +2808,7 @@ async function submitHandoverNote(){
     const d=await res.json();
     if(d.success===false){err.textContent='❌ '+(d.error||'Failed to save.');return;}
     document.getElementById('handover-modal').style.display='none';
+    S.handoverDate=noteDate; // jump the viewer to the date they just wrote for
     loadHandoverNotes();
   }catch(e){
     queuePendingHandoverNote(payload);
@@ -2705,17 +2825,16 @@ function queuePendingHandoverNote(payload){
 }
 function updatePendingHandoverBadge(){
   const q=JSON.parse(localStorage.getItem('mfd_pending_handover_notes')||'[]');
-  const card=document.getElementById('handover-card'); if(!card)return;
-  const btnRow=card.querySelector('div[style*="justify-content:space-between"]');
+  const wrap=document.getElementById('handover-btn-wrap'); if(!wrap)return;
   let badge=document.getElementById('handover-badge');
   if(q.length){
-    if(!badge&&btnRow){
+    if(!badge){
       badge=document.createElement('span');
       badge.id='handover-badge';
-      badge.style.cssText='margin-left:6px;background:#f59e0b;color:#1a1a1a;font-size:10px;font-weight:800;padding:2px 7px;border-radius:10px';
-      btnRow.appendChild(badge);
+      badge.style.cssText='background:#f59e0b;color:#1a1a1a;font-size:10px;font-weight:800;padding:2px 7px;border-radius:10px';
+      wrap.appendChild(badge);
     }
-    if(badge)badge.textContent=q.length+' pending sync';
+    badge.textContent=q.length+' pending sync';
   } else if(badge){ badge.remove(); }
 }
 async function flushPendingHandoverNotes(){
@@ -2737,23 +2856,30 @@ async function flushPendingHandoverNotes(){
     loadHandoverNotes();
   }
 }
+const HANDOVER_VIS_LABEL={all:'🌐 All',role_section:'👥 Same Role+Section',role_both:'👥 Same Role (both sections)',private:'🔒 Private'};
 async function loadHandoverNotes(){
   const card=document.getElementById('handover-card'), el=document.getElementById('handover-notes-list');
   if(!card||!el||!S.user||S.guestMode)return;
   card.style.display='block';
+  if(!S.handoverDate)S.handoverDate=todayISO();
+  const lbl=document.getElementById('handover-date-label');
+  if(lbl){
+    if(S.handoverDate===todayISO())lbl.textContent='Today, '+toNepali(S.handoverDate);
+    else lbl.textContent=reqDateStr(S.handoverDate);
+  }
   el.innerHTML='<div style="color:var(--text3);font-size:12px">⏳ Loading...</div>';
   try{
-    const res=await fetch(S.scriptUrl+'?action=getHandoverNotes&date='+todayISO()+'&section='+(S.user.section||'avia')+'&role='+encodeURIComponent(RLABEL[S.user.role]||'')+'&name='+encodeURIComponent(S.user.name));
+    const res=await fetch(S.scriptUrl+'?action=getHandoverNotes&date='+S.handoverDate+'&section='+(S.user.section||'avia')+'&role='+encodeURIComponent(RLABEL[S.user.role]||'')+'&name='+encodeURIComponent(S.user.name));
     const d=await res.json();
     const notes=(d.data||[]).sort((a,b)=>new Date(b.timestamp)-new Date(a.timestamp));
-    if(!notes.length){el.innerHTML='<div style="color:var(--text3);font-size:12px">आज कुनै handover note छैन।</div>';return;}
+    if(!notes.length){el.innerHTML='<div style="color:var(--text3);font-size:12px">यो दिन कुनै handover note छैन।</div>';return;}
     el.innerHTML=notes.map(n=>{
-      const isPrivate=!!n.addressedTo;
-      const crossContext=isPrivate&&(n.section!==S.user.section||n.role!==RLABEL[S.user.role]);
+      const isPrivate=n.visibility==='private';
+      const crossContext=(n.section!==S.user.section||n.role!==RLABEL[S.user.role]);
       return`<div style="background:var(--bg3);border-radius:8px;padding:8px 10px;margin-bottom:6px;font-size:12px">
       <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:3px">
         <b>${n.author}${crossContext?` <span style="font-weight:400;color:var(--text3)">(${n.role})</span>`:''}</b>
-        ${isPrivate?`<span style="font-size:10px;color:var(--accent)">🔒 → ${n.addressedTo}</span>`:'<span style="font-size:10px;color:var(--text3)">General</span>'}
+        <span style="font-size:10px;color:${isPrivate?'var(--accent)':'var(--text3)'}">${isPrivate?'🔒 → '+n.addressedTo:(HANDOVER_VIS_LABEL[n.visibility]||'General')}</span>
       </div>
       <div style="color:var(--text2)">${n.note}</div>
       <div style="font-size:10px;color:var(--text3);margin-top:3px">${n.timestamp?new Date(n.timestamp).toLocaleTimeString([],{hour:'numeric',minute:'2-digit'}):''}</div>
@@ -3404,6 +3530,35 @@ async function saveNotifPrefs(){
   document.getElementById('notif-prefs-modal').style.display='none';
   alert('✅ Saved! अब यी सबै section को duty change notification तपाईंलाई आउँछ: '+checked.map(k=>ALL_SECTIONS.find(s=>s.key===k)?.label||k).join(', '));
 }
+function openChangePasswordModal(){
+  if(!S.user){alert('पहिले login गर्नुहोस्।');return;}
+  document.getElementById('chpw-current').value='';
+  document.getElementById('chpw-new').value='';
+  document.getElementById('chpw-confirm').value='';
+  document.getElementById('chpw-err').textContent='';
+  document.getElementById('change-pw-modal').style.display='flex';
+}
+async function submitChangePassword(){
+  const cur=document.getElementById('chpw-current').value;
+  const nw=document.getElementById('chpw-new').value;
+  const cf=document.getElementById('chpw-confirm').value;
+  const err=document.getElementById('chpw-err');
+  if(!cur){err.textContent='❌ हालको password लेख्नुहोस्';return;}
+  if(!nw||nw.length<4){err.textContent='❌ नयाँ password कम्तिमा ४ अक्षरको हुनुपर्छ';return;}
+  if(nw!==cf){err.textContent='❌ नयाँ password मिलेन (confirm फरक छ)';return;}
+  if(!S.scriptUrl){err.textContent='❌ Script URL not configured';return;}
+  err.textContent='⏳ Updating...';
+  try{
+    const res=await fetch(S.scriptUrl,{method:'POST',body:JSON.stringify({
+      action:'changeStaffPassword',name:S.user.name,role:RLABEL[S.user.role],
+      currentPassword:cur,newPassword:nw
+    })});
+    const d=await res.json();
+    if(d.success===false){err.textContent='❌ '+(d.error||'Failed to update.');return;}
+    document.getElementById('change-pw-modal').style.display='none';
+    alert('✅ Password अपडेट भयो! अर्को पटक logout गरेर login गर्दा नयाँ password चाहिन्छ।');
+  }catch(e){err.textContent='❌ Failed. Check connection.';}
+}
 
 // ── THEME ──
 function applyTheme(theme){
@@ -3981,6 +4136,55 @@ async function loadAuditLog(){
       <div style="font-size:10px;color:var(--text3);margin-top:2px">👤 ${log.admin||'Unknown'}</div>
     </div>`;
   }).join('');
+}
+function fmtDuration(totalSeconds){
+  const s=Math.round(totalSeconds||0);
+  const h=Math.floor(s/3600), m=Math.floor((s%3600)/60);
+  if(h>0)return h+'h '+m+'m';
+  if(m>0)return m+'m';
+  return s+'s';
+}
+async function loadUsageAnalytics(){
+  const totalsEl=document.getElementById('usage-totals'), listEl=document.getElementById('usage-list');
+  if(!totalsEl||!listEl)return;
+  listEl.innerHTML='<div style="color:var(--text3);font-size:13px">⏳ Loading...</div>';
+  const token=S.sessionToken||localStorage.getItem('mfd_session_token')||'';
+  try{
+    const res=await fetch(S.scriptUrl+'?action=getUsageAnalytics&token='+encodeURIComponent(token));
+    const d=await res.json();
+    if(d.success===false){listEl.innerHTML='<div style="color:var(--red);font-size:13px">❌ '+(d.error||'Failed to load — try re-logging in as admin.')+'</div>';totalsEl.innerHTML='';return;}
+    const staff=d.staff||[], totals=d.totals||{opens:0,totalSeconds:0,tabTimes:{}};
+    const topTabsOverall=Object.entries(totals.tabTimes||{}).sort((a,b)=>b[1]-a[1]).slice(0,3).map(([t,s])=>t+' ('+fmtDuration(s)+')').join(', ')||'—';
+    totalsEl.innerHTML=`<div style="display:flex;gap:8px;flex-wrap:wrap">
+      <div style="background:var(--bg3);border-radius:8px;padding:10px 14px;flex:1;min-width:110px">
+        <div style="font-size:20px;font-weight:700;color:var(--accent)">${totals.opens}</div>
+        <div style="font-size:11px;color:var(--text3)">Total App Opens</div>
+      </div>
+      <div style="background:var(--bg3);border-radius:8px;padding:10px 14px;flex:1;min-width:110px">
+        <div style="font-size:20px;font-weight:700;color:var(--accent)">${fmtDuration(totals.totalSeconds)}</div>
+        <div style="font-size:11px;color:var(--text3)">Total Time (all staff)</div>
+      </div>
+      <div style="background:var(--bg3);border-radius:8px;padding:10px 14px;flex:2;min-width:180px">
+        <div style="font-size:12px;font-weight:700;color:var(--text)">Top Tabs Overall</div>
+        <div style="font-size:11px;color:var(--text3);margin-top:2px">${topTabsOverall}</div>
+      </div>
+    </div>`;
+    if(!staff.length){listEl.innerHTML='<div style="color:var(--text3);font-size:13px">अहिलेसम्म कुनै usage data छैन।</div>';return;}
+    listEl.innerHTML=staff.map(s=>{
+      const topTabs=Object.entries(s.tabTimes||{}).sort((a,b)=>b[1]-a[1]).slice(0,3).map(([t,sec])=>t+' '+fmtDuration(sec)).join(', ')||'—';
+      return`<div style="background:var(--bg3);border-radius:8px;padding:10px 12px;margin-bottom:6px">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:3px">
+          <b style="font-size:13px">${s.name}</b>
+          <span style="font-size:11px;color:var(--text3)">${RLABEL[s.role]||s.role} · ${SEC_LABEL[s.section]||s.section||''}</span>
+        </div>
+        <div style="display:flex;gap:14px;font-size:12px;color:var(--text2);margin-bottom:3px">
+          <span>📲 ${s.opens} opens</span>
+          <span>⏱️ ${fmtDuration(s.totalSeconds)}</span>
+        </div>
+        <div style="font-size:11px;color:var(--text3)">Top tabs: ${topTabs}</div>
+      </div>`;
+    }).join('');
+  }catch(e){listEl.innerHTML='<div style="color:var(--red);font-size:13px">Load failed. Check connection.</div>';}
 }
 // ── TOOLS TAB: Pending Approvals (two-tier admin approval) ──
 async function loadPendingApprovals(){
