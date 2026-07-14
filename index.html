@@ -427,7 +427,7 @@ textarea.fi{resize:vertical;min-height:80px}
       <button class="icon-btn" id="theme-toggle-btn" onclick="toggleTheme()" title="Theme">🌙</button>
       <button class="icon-btn" id="notif-icon-btn" onclick="toggleNotifFromIcon()" title="Notifications">🔔</button>
       <button class="icon-btn" onclick="openNotifPrefsModal()" title="Notification Settings">⚙️</button>
-      <button class="icon-btn" onclick="logout()" title="Logout">⏏️</button>
+      <button class="icon-btn" onclick="openProfileModal()" title="Profile">👤</button>
     </div>
   </div>
   <div class="ah-mid" id="ah-mid">
@@ -477,6 +477,14 @@ textarea.fi{resize:vertical;min-height:80px}
           <span id="handover-date-label" style="font-size:11px;color:var(--text2);font-weight:600;min-width:110px;text-align:center">Today</span>
           <button onclick="handoverDateShift(1)" style="background:none;border:none;color:var(--text3);font-size:16px;cursor:pointer;padding:2px 8px">›</button>
         </div>
+        <select class="fi" id="handover-filter" onchange="renderHandoverNotesFiltered()" style="font-size:11px;padding:6px 8px;margin-bottom:8px">
+          <option value="this_section">यही Section (मेरो section)</option>
+          <option value="other_section">अर्को Section</option>
+          <option value="all_sections">दुबै Section (सबै)</option>
+          <option value="sdm">⭐ Sr. Div. Met. मात्र</option>
+          <option value="forecaster">🌤️ Forecaster मात्र</option>
+          <option value="observer">🔭 Observer मात्र</option>
+        </select>
         <div id="handover-notes-list"><div style="color:var(--text3);font-size:12px">⏳ Loading...</div></div>
       </div>
       <div class="section-hdr" id="today-sec-hdr">All staff on duty</div>
@@ -989,6 +997,26 @@ textarea.fi{resize:vertical;min-height:80px}
     <div id="chpw-err" style="font-size:12px;color:var(--red);min-height:16px;margin-bottom:6px"></div>
     <button class="btn-green" onclick="submitChangePassword()" style="width:100%;margin-bottom:8px">💾 Update Password</button>
     <button class="btn-outline" onclick="document.getElementById('change-pw-modal').style.display='none'" style="width:100%">Cancel</button>
+  </div>
+</div>
+
+<!-- PROFILE MODAL -->
+<div id="profile-modal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.75);z-index:1002;align-items:center;justify-content:center;padding:16px">
+  <div style="background:var(--card);border-radius:var(--radius);padding:20px;max-width:400px;width:100%;max-height:85vh;overflow-y:auto">
+    <div style="text-align:center;margin-bottom:18px">
+      <div style="width:56px;height:56px;border-radius:50%;background:var(--accent);color:#04202b;font-size:22px;font-weight:800;display:flex;align-items:center;justify-content:center;margin:0 auto 10px" id="profile-avatar">--</div>
+      <div style="font-size:17px;font-weight:700" id="profile-name">--</div>
+      <div style="font-size:12px;color:var(--text3);margin-top:2px" id="profile-role-section">--</div>
+    </div>
+    <div style="display:flex;flex-direction:column;gap:8px">
+      <button class="btn-outline" onclick="document.getElementById('profile-modal').style.display='none';openChangePasswordModal()" style="text-align:left;display:flex;justify-content:space-between">🔒 Change Password</button>
+      <button class="btn-outline" onclick="document.getElementById('profile-modal').style.display='none';openNotifPrefsModal()" style="text-align:left;display:flex;justify-content:space-between">🔔 Notification Preferences</button>
+      <button class="btn-outline" onclick="profileGoTo('calendar',2)" style="text-align:left;display:flex;justify-content:space-between">⏰ My Reminders <span id="profile-reminders-count" style="color:var(--text3);font-weight:400"></span></button>
+      <button class="btn-outline" onclick="document.getElementById('profile-modal').style.display='none';openSwapModal()" style="text-align:left;display:flex;justify-content:space-between">📨 My Swap Requests</button>
+      <button class="btn-outline" onclick="profileGoTo('today',0)" style="text-align:left;display:flex;justify-content:space-between">📋 My Handover Notes (today) <span id="profile-notes-count" style="color:var(--text3);font-weight:400"></span></button>
+    </div>
+    <button class="btn-red" onclick="document.getElementById('profile-modal').style.display='none';logout()" style="width:100%;margin-top:16px">⏏️ Logout</button>
+    <button class="btn-outline" onclick="document.getElementById('profile-modal').style.display='none'" style="width:100%;margin-top:8px">Close</button>
   </div>
 </div>
 
@@ -2744,9 +2772,14 @@ function onSwapDateChange(){const iso=document.getElementById('swap-date').value
 
 // ── Shift Handover Notes ──────────────────────────────────────────
 function handoverDateShift(days){
-  const d=new Date((S.handoverDate||todayISO())+'T00:00:00');
-  d.setDate(d.getDate()+days);
-  S.handoverDate=toISO(d);
+  // Pure UTC arithmetic throughout — the previous version parsed the date string as
+  // LOCAL time but then extracted it back out via toISOString() (always UTC), which
+  // silently shifts the result by a day on any UTC+ device (Nepal included). That's
+  // what caused a date to appear skipped going backward, and "Forward" to seem stuck.
+  const[y,m,dd]=(S.handoverDate||todayISO()).split('-').map(Number);
+  const d=new Date(Date.UTC(y,m-1,dd));
+  d.setUTCDate(d.getUTCDate()+days);
+  S.handoverDate=d.toISOString().slice(0,10);
   loadHandoverNotes();
 }
 function onHandoverVisibilityChange(){
@@ -2864,28 +2897,41 @@ async function loadHandoverNotes(){
   if(!S.handoverDate)S.handoverDate=todayISO();
   const lbl=document.getElementById('handover-date-label');
   if(lbl){
-    if(S.handoverDate===todayISO())lbl.textContent='Today, '+toNepali(S.handoverDate);
-    else lbl.textContent=reqDateStr(S.handoverDate);
+    const prefix=(S.handoverDate===todayISO())?'Today, ':'';
+    lbl.textContent=prefix+toNepali(S.handoverDate)+' ('+reqDateStr(S.handoverDate).replace(/,? \d{4}$/,'')+')';
   }
   el.innerHTML='<div style="color:var(--text3);font-size:12px">⏳ Loading...</div>';
   try{
     const res=await fetch(S.scriptUrl+'?action=getHandoverNotes&date='+S.handoverDate+'&section='+(S.user.section||'avia')+'&role='+encodeURIComponent(RLABEL[S.user.role]||'')+'&name='+encodeURIComponent(S.user.name));
     const d=await res.json();
-    const notes=(d.data||[]).sort((a,b)=>new Date(b.timestamp)-new Date(a.timestamp));
-    if(!notes.length){el.innerHTML='<div style="color:var(--text3);font-size:12px">यो दिन कुनै handover note छैन।</div>';return;}
-    el.innerHTML=notes.map(n=>{
-      const isPrivate=n.visibility==='private';
-      const crossContext=(n.section!==S.user.section||n.role!==RLABEL[S.user.role]);
-      return`<div style="background:var(--bg3);border-radius:8px;padding:8px 10px;margin-bottom:6px;font-size:12px">
-      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:3px">
-        <b>${n.author}${crossContext?` <span style="font-weight:400;color:var(--text3)">(${n.role})</span>`:''}</b>
-        <span style="font-size:10px;color:${isPrivate?'var(--accent)':'var(--text3)'}">${isPrivate?'🔒 → '+n.addressedTo:(HANDOVER_VIS_LABEL[n.visibility]||'General')}</span>
-      </div>
-      <div style="color:var(--text2)">${n.note}</div>
-      <div style="font-size:10px;color:var(--text3);margin-top:3px">${n.timestamp?new Date(n.timestamp).toLocaleTimeString([],{hour:'numeric',minute:'2-digit'}):''}</div>
-    </div>`;
-    }).join('');
+    S.handoverNotesRaw=(d.data||[]).sort((a,b)=>new Date(b.timestamp)-new Date(a.timestamp));
+    renderHandoverNotesFiltered();
   }catch(e){el.innerHTML='<div style="color:var(--red);font-size:12px">Load failed.</div>';}
+}
+function renderHandoverNotesFiltered(){
+  const el=document.getElementById('handover-notes-list'); if(!el||!S.user)return;
+  const filter=document.getElementById('handover-filter')?.value||'this_section';
+  const mySec=S.user.section||'avia', myRoleLabel=RLABEL[S.user.role]||'';
+  let notes=S.handoverNotesRaw||[];
+  if(filter==='this_section')notes=notes.filter(n=>n.section===mySec);
+  else if(filter==='other_section')notes=notes.filter(n=>n.section!==mySec);
+  else if(filter==='sdm')notes=notes.filter(n=>n.role===RLABEL.sdm);
+  else if(filter==='forecaster')notes=notes.filter(n=>n.role===RLABEL.forecaster);
+  else if(filter==='observer')notes=notes.filter(n=>n.role===RLABEL.observer);
+  // 'all_sections' — no extra filter beyond what the server already allowed us to see
+  if(!notes.length){el.innerHTML='<div style="color:var(--text3);font-size:12px">यो filter मा कुनै note छैन।</div>';return;}
+  el.innerHTML=notes.map(n=>{
+    const isPrivate=n.visibility==='private';
+    const crossContext=(n.section!==mySec||n.role!==myRoleLabel);
+    return`<div style="background:var(--bg3);border-radius:8px;padding:8px 10px;margin-bottom:6px;font-size:12px">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:3px">
+      <b>${n.author}${crossContext?` <span style="font-weight:400;color:var(--text3)">(${n.role}${n.section?', '+(SEC_LABEL[n.section]||n.section):''})</span>`:''}</b>
+      <span style="font-size:10px;color:${isPrivate?'var(--accent)':'var(--text3)'}">${isPrivate?'🔒 → '+n.addressedTo:(HANDOVER_VIS_LABEL[n.visibility]||'General')}</span>
+    </div>
+    <div style="color:var(--text2)">${n.note}</div>
+    <div style="font-size:10px;color:var(--text3);margin-top:3px">${n.timestamp?new Date(n.timestamp).toLocaleTimeString([],{hour:'numeric',minute:'2-digit'}):''}</div>
+  </div>`;
+  }).join('');
 }
 function fillSwapForDate(iso){
   const shift=getDuty(iso,S.user.name,S.user.role);
@@ -3529,6 +3575,26 @@ async function saveNotifPrefs(){
   }
   document.getElementById('notif-prefs-modal').style.display='none';
   alert('✅ Saved! अब यी सबै section को duty change notification तपाईंलाई आउँछ: '+checked.map(k=>ALL_SECTIONS.find(s=>s.key===k)?.label||k).join(', '));
+}
+function openProfileModal(){
+  if(S.guestMode||!S.user){logout();return;} // guest has no profile — this icon just exits, as before
+  document.getElementById('profile-avatar').textContent=(S.user.name||'?').trim().charAt(0).toUpperCase();
+  document.getElementById('profile-name').textContent=S.user.name;
+  document.getElementById('profile-role-section').textContent=RICON[S.user.role]+' '+RLABEL[S.user.role]+' · '+(SEC_LABEL[S.user.section]||S.user.section||'');
+  // Reminders: count how many this user currently has set (stored per-date in localStorage)
+  const remPrefix='reminder_'+S.user.name+'_';
+  const remCount=Object.keys(localStorage).filter(k=>k.startsWith(remPrefix)).length;
+  document.getElementById('profile-reminders-count').textContent=remCount?remCount+' set':'none set';
+  // Notes: how many the user has authored, from whatever's currently loaded (today's view) —
+  // a full all-time count would need a dedicated backend query, this is today's snapshot only.
+  const myNotesToday=(S.handoverNotesRaw||[]).filter(n=>n.author===S.user.name).length;
+  document.getElementById('profile-notes-count').textContent=myNotesToday?myNotesToday+' today':'0 today';
+  document.getElementById('profile-modal').style.display='flex';
+}
+function profileGoTo(tab,tabIndex){
+  document.getElementById('profile-modal').style.display='none';
+  const tabEls=document.querySelectorAll('.tab-bar .tab');
+  switchTab(tab,tabEls[tabIndex]);
 }
 function openChangePasswordModal(){
   if(!S.user){alert('पहिले login गर्नुहोस्।');return;}
