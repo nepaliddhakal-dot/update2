@@ -423,10 +423,8 @@ textarea.fi{resize:vertical;min-height:80px}
       <div class="uname" id="hdr-name">--</div>
     </div>
     <div class="ah-right">
-      <span class="role-badge" id="hdr-role-badge">--</span>
       <button class="icon-btn" id="theme-toggle-btn" onclick="toggleTheme()" title="Theme">🌙</button>
       <button class="icon-btn" id="notif-icon-btn" onclick="toggleNotifFromIcon()" title="Notifications">🔔</button>
-      <button class="icon-btn" onclick="openNotifPrefsModal()" title="Notification Settings">⚙️</button>
       <button class="icon-btn" id="hdr-profile-btn" onclick="openProfileModal()" title="Profile"><span id="hdr-profile-btn-inner">👤</span></button>
     </div>
   </div>
@@ -450,7 +448,6 @@ textarea.fi{resize:vertical;min-height:80px}
     <div class="tab" onclick="switchTab('myduties',this)"><span class="ti">📋</span>My Duties</div>
     <div class="tab" onclick="switchTab('calendar',this)"><span class="ti">📅</span>Calendar</div>
     <div class="tab" onclick="switchTab('fullroster',this)"><span class="ti">📊</span>Full Roster</div>
-    <div class="tab" onclick="switchTab('myyear',this)"><span class="ti">🗓️</span>My Year</div>
   </div>
   <div class="tab-content">
     <!-- TODAY -->
@@ -495,6 +492,9 @@ textarea.fi{resize:vertical;min-height:80px}
     </div>
     <!-- MY DUTIES — clean rows, no colleague list; click row to see details -->
     <div class="tab-panel" id="tab-myduties">
+      <div style="padding:10px 12px 0">
+        <button class="btn-outline" onclick="openMyYearModal()" style="width:100%;padding:8px;font-size:12px">📊 View My Year-to-Date Leave Balance</button>
+      </div>
       <div class="month-nav">
         <div style="display:flex;flex-direction:column;align-items:flex-start;min-width:80px">
           <button class="nav-arrow" onclick="mdPrev()" style="padding:0">‹</button>
@@ -564,16 +564,24 @@ textarea.fi{resize:vertical;min-height:80px}
         <div class="roster-scale-wrap" id="fr-scale"><div id="fr-table"></div></div>
       </div>
     </div>
-    <!-- MY YEAR — leave balance + year-at-a-glance for the logged-in staff member -->
-    <div class="tab-panel" id="tab-myyear">
-      <div style="display:flex;align-items:center;justify-content:center;gap:10px;padding:12px 12px 4px">
-        <button class="nav-arrow" onclick="myYearShiftYear(-1)">‹</button>
-        <div style="font-size:14px;font-weight:700;color:var(--text);min-width:120px;text-align:center" id="myyear-title">--</div>
-        <button class="nav-arrow" onclick="myYearShiftYear(1)">›</button>
-      </div>
-      <div id="myyear-body" style="padding:6px 12px 20px">
-        <div style="color:var(--text3);font-size:12px;text-align:center;padding:20px">⏳ Loading...</div>
-      </div>
+  </div>
+</div>
+
+<!-- MY YEAR-TO-DATE LEAVE BALANCE — opened from My Duties, not a separate tab -->
+<div id="myyear-modal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.8);z-index:1001;align-items:flex-end;justify-content:center">
+  <div style="background:var(--bg2);border-radius:20px 20px 0 0;width:100%;max-width:520px;padding:0 0 max(20px,env(safe-area-inset-bottom));max-height:90vh;overflow-y:auto;animation:slideUp .3s ease">
+    <div style="width:36px;height:4px;background:var(--border);border-radius:2px;margin:12px auto 14px"></div>
+    <div style="font-size:16px;font-weight:700;padding:0 18px 12px;border-bottom:1px solid var(--border)">📊 My Year-to-Date Leave Balance</div>
+    <div style="display:flex;align-items:center;justify-content:center;gap:10px;padding:12px 12px 4px">
+      <button class="nav-arrow" onclick="myYearShiftYear(-1)">‹</button>
+      <div style="font-size:14px;font-weight:700;color:var(--text);min-width:120px;text-align:center" id="myyear-title">--</div>
+      <button class="nav-arrow" onclick="myYearShiftYear(1)">›</button>
+    </div>
+    <div id="myyear-body" style="padding:6px 18px 20px">
+      <div style="color:var(--text3);font-size:12px;text-align:center;padding:20px">⏳ Loading...</div>
+    </div>
+    <div style="padding:0 18px">
+      <button class="btn-outline" onclick="document.getElementById('myyear-modal').style.display='none'" style="width:100%">Close</button>
     </div>
   </div>
 </div>
@@ -1762,12 +1770,10 @@ function enterGuestView(){
   document.querySelectorAll('.tab-bar .tab').forEach(t=>{if(!t.textContent.includes('Full Roster'))t.style.display='none';});
   const fab=document.getElementById('swap-fab');if(fab)fab.style.display='none';
   document.getElementById('hdr-name').textContent='👁️ Guest (Public View)';
-  document.getElementById('hdr-role-badge').style.display='none';
   const secInline=document.getElementById('section-inline');if(secInline)secInline.style.display='none';
   const ahMid=document.getElementById('ah-mid');if(ahMid)ahMid.style.display='none';
-  // Guest has no account, so notification bell + notification settings don't apply
+  // Guest has no account, so the notification bell doesn't apply
   const notifIcon=document.getElementById('notif-icon-btn');if(notifIcon)notifIcon.style.display='none';
-  const gearBtn=document.querySelector('[onclick="openNotifPrefsModal()"]');if(gearBtn)gearBtn.style.display='none';
   const frTabEl=[...document.querySelectorAll('.tab-bar .tab')].find(t=>t.textContent.includes('Full Roster'));
   switchTab('fullroster',frTabEl);
 }
@@ -1784,11 +1790,7 @@ function enterApp(){
   refreshProfileAvatarUI(); // show any cached photo immediately
   loadProfilePhoto();       // then refresh from server in the background
   document.getElementById('hdr-name').textContent=S.user.name;
-  document.getElementById('hdr-role-badge').style.display='';
-  document.getElementById('hdr-role-badge').textContent=RICON[S.user.role]+' '+RLABEL[S.user.role];
-  document.getElementById('hdr-role-badge').className='role-badge '+sec;
   const notifIcon=document.getElementById('notif-icon-btn');if(notifIcon)notifIcon.style.display='';
-  const gearBtn=document.querySelector('[onclick="openNotifPrefsModal()"]');if(gearBtn)gearBtn.style.display='';
   document.querySelectorAll('.tab-bar .tab').forEach(t=>t.style.display='');
   const fab=document.getElementById('swap-fab');if(fab)fab.style.display='';
   // Section badge (right side)
@@ -1825,7 +1827,6 @@ function switchTab(tab,el){
   document.getElementById('tab-'+tab).classList.add('active');
   if(tab==='calendar')renderCalendar();
   if(tab==='fullroster')renderFullRoster();
-  if(tab==='myyear')loadMyYearSummary();
   if(tab==='myduties'){
     // Navigate to current month and scroll to today
     const cur=getCurrentBsMonth();
@@ -3013,6 +3014,11 @@ const LEAVE_TYPE_LABELS_EN={
   'BIDA-SAT':'Compensatory Leave'
 };
 const LEAVE_TYPE_ORDER=['BIDA-BHP','BIDA-PRB','BIDA-GHR','BIDA-BIR','BIDA-PRS','BIDA-PSY','BIDA-KIR','BIDA-ADH','BIDA-ASA','BIDA-SAT'];
+function openMyYearModal(){
+  if(!S.user){alert('Please login first');return;}
+  document.getElementById('myyear-modal').style.display='flex';
+  loadMyYearSummary();
+}
 async function loadMyYearSummary(){
   if(!S.user)return;
   if(!S.myYearBsYear)S.myYearBsYear=adToBs(todayISO()).bsY;
