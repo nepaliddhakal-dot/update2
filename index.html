@@ -760,6 +760,9 @@ textarea.fi{resize:vertical;min-height:80px}
         <button class="btn-outline" onclick="runLeaveBalanceReport()" style="padding:6px 12px;font-size:12px">📊 Load Year</button>
         <button class="btn-outline" onclick="openLeaveEntitlementsEditor()" style="padding:6px 12px;font-size:12px">⚙️ Edit Entitlements</button>
       </div>
+      <div style="font-size:11px;color:var(--text3);margin-bottom:6px">Already-saved months won't reflect a leave-counting fix automatically — use this once to fix past months:</div>
+      <button class="btn-outline" onclick="recalcAllSummaries()" style="padding:6px 12px;font-size:12px;margin-bottom:8px">🔁 Recalculate Leave Totals (all past months)</button>
+      <div id="recalc-summary-status" style="font-size:11px;color:var(--text3);min-height:14px;margin-bottom:8px"></div>
       <div id="leave-balance-result"></div>
       <div id="leave-entitlements-editor" style="display:none;margin-top:10px;background:var(--card2);border:1px solid var(--border2);border-radius:var(--radius);padding:12px"></div>
 
@@ -4651,6 +4654,32 @@ async function getLeaveEntitlementsCached(force){
     S.leaveEntitlementsCache=d.entitlements||{};
   }
   return S.leaveEntitlementsCache;
+}
+async function recalcAllSummaries(){
+  const statusEl=document.getElementById('recalc-summary-status');
+  if(!confirm('This re-scans every monthly roster file and rebuilds its Leave/Duty totals with the corrected logic. It can take a little while for many months. Continue?'))return;
+  statusEl.style.color='var(--text3)';
+  statusEl.textContent='⏳ Fetching file list...';
+  try{
+    const fRes=await fetch(S.scriptUrl+'?action=getMonthFiles');
+    const fD=await fRes.json();
+    const files=fD.data||[];
+    if(!files.length){statusEl.textContent='No roster files found.';return;}
+    let done=0,failed=0;
+    for(const f of files){
+      statusEl.textContent='⏳ Recalculating '+(done+failed+1)+'/'+files.length+': '+f.name+'...';
+      try{
+        const res=await fetch(S.scriptUrl,{method:'POST',body:JSON.stringify({action:'regenerateSummary',fileId:f.fileId})});
+        const d=await res.json();
+        if(d.success===false)failed++; else done++;
+      }catch(e){failed++;}
+    }
+    statusEl.style.color=failed?'var(--yellow)':'var(--green)';
+    statusEl.textContent='✅ Recalculated '+done+' month(s)'+(failed?', '+failed+' failed':'')+'.';
+  }catch(e){
+    statusEl.style.color='var(--red)';
+    statusEl.textContent='❌ Could not fetch file list — check connection.';
+  }
 }
 async function runLeaveBalanceReport(){
   const el=document.getElementById('leave-balance-result');
