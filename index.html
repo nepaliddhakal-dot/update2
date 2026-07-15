@@ -450,6 +450,7 @@ textarea.fi{resize:vertical;min-height:80px}
     <div class="tab" onclick="switchTab('myduties',this)"><span class="ti">📋</span>My Duties</div>
     <div class="tab" onclick="switchTab('calendar',this)"><span class="ti">📅</span>Calendar</div>
     <div class="tab" onclick="switchTab('fullroster',this)"><span class="ti">📊</span>Full Roster</div>
+    <div class="tab" onclick="switchTab('myyear',this)"><span class="ti">🗓️</span>My Year</div>
   </div>
   <div class="tab-content">
     <!-- TODAY -->
@@ -561,6 +562,17 @@ textarea.fi{resize:vertical;min-height:80px}
       </div>
       <div class="roster-outer" id="fr-outer">
         <div class="roster-scale-wrap" id="fr-scale"><div id="fr-table"></div></div>
+      </div>
+    </div>
+    <!-- MY YEAR — leave balance + year-at-a-glance for the logged-in staff member -->
+    <div class="tab-panel" id="tab-myyear">
+      <div style="display:flex;align-items:center;justify-content:center;gap:10px;padding:12px 12px 4px">
+        <button class="nav-arrow" onclick="myYearShiftYear(-1)">‹</button>
+        <div style="font-size:14px;font-weight:700;color:var(--text);min-width:120px;text-align:center" id="myyear-title">--</div>
+        <button class="nav-arrow" onclick="myYearShiftYear(1)">›</button>
+      </div>
+      <div id="myyear-body" style="padding:6px 12px 20px">
+        <div style="color:var(--text3);font-size:12px;text-align:center;padding:20px">⏳ Loading...</div>
       </div>
     </div>
   </div>
@@ -737,6 +749,19 @@ textarea.fi{resize:vertical;min-height:80px}
       </div>
       <div id="workload-months-picker" style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:10px"></div>
       <div id="workload-report-result"></div>
+
+      <hr style="border-color:var(--border);margin:16px 0"/>
+
+      <!-- Annual leave balance vs entitlement, per staff -->
+      <div class="a-card-title">🎯 Leave Balance (by year)</div>
+      <div class="a-info">Automatically pulls every roster file for the chosen B.S. year and compares each staff member's leave usage to their annual entitlement.</div>
+      <div style="display:flex;gap:8px;align-items:center;margin:8px 0;flex-wrap:wrap">
+        <input class="fi" type="number" id="lb-year-input" style="width:100px;padding:6px 10px;font-size:12px" placeholder="e.g. 2083"/>
+        <button class="btn-outline" onclick="runLeaveBalanceReport()" style="padding:6px 12px;font-size:12px">📊 Load Year</button>
+        <button class="btn-outline" onclick="openLeaveEntitlementsEditor()" style="padding:6px 12px;font-size:12px">⚙️ Edit Entitlements</button>
+      </div>
+      <div id="leave-balance-result"></div>
+      <div id="leave-entitlements-editor" style="display:none;margin-top:10px;background:var(--card2);border:1px solid var(--border2);border-radius:var(--radius);padding:12px"></div>
 
       <hr style="border-color:var(--border);margin:16px 0"/>
 
@@ -1793,6 +1818,7 @@ function switchTab(tab,el){
   document.getElementById('tab-'+tab).classList.add('active');
   if(tab==='calendar')renderCalendar();
   if(tab==='fullroster')renderFullRoster();
+  if(tab==='myyear')loadMyYearSummary();
   if(tab==='myduties'){
     // Navigate to current month and scroll to today
     const cur=getCurrentBsMonth();
@@ -1812,7 +1838,7 @@ function switchAdminTab(tab,el){
   if(tab==='staff'){renderAdminStaff();checkUnassigned();}
  if(tab==='months')renderMonthsList();if(tab==='admins')renderAdminsTab();if(tab==='edit')loadEditMonths();if(tab==='requests')loadSwapRequests();if(tab==='roster'){const c=getCurrentBsMonth();afrBsYear=c.bsY;afrBsMonth=c.bsM;renderAdminFullRoster();}if(tab==='notify'){setNotifTarget('all');loadNotifHistory();}
 if(tab==='report'){loadReportMonths();}
-if(tab==='tools'){loadPendingApprovals();loadMonthFilesForReport();loadAppInstalls();}
+if(tab==='tools'){loadPendingApprovals();loadMonthFilesForReport();loadAppInstalls();initLeaveBalanceYearInput();}
 if(tab==='audit'){loadAuditLog();}
 if(tab==='usage'){loadUsageAnalytics();}
 }
@@ -2936,6 +2962,101 @@ function renderHandoverNotesFiltered(){
     <div style="font-size:10px;color:var(--text3);margin-top:3px">${n.timestamp?new Date(n.timestamp).toLocaleTimeString([],{hour:'numeric',minute:'2-digit'}):''}</div>
   </div>`;
   }).join('');
+}
+// ══════════════════════════════════════════════════════════════════
+// MY YEAR — leave balance + year-at-a-glance (staff-facing)
+// ══════════════════════════════════════════════════════════════════
+const LEAVE_TYPE_LABELS_EN={
+  'BIDA-BHP':'Casual Leave','BIDA-PRB':'Festival Leave','BIDA-GHR':'Home Leave',
+  'BIDA-BIR':'Sick Leave','BIDA-PRS':'Maternity Leave','BIDA-PSY':'Paternity/Care Leave',
+  'BIDA-KIR':'Mourning Leave','BIDA-ADH':'Study Leave','BIDA-ASA':'Extraordinary Leave',
+  'BIDA-SAT':'Compensatory Leave'
+};
+const LEAVE_TYPE_ORDER=['BIDA-BHP','BIDA-PRB','BIDA-GHR','BIDA-BIR','BIDA-PRS','BIDA-PSY','BIDA-KIR','BIDA-ADH','BIDA-ASA','BIDA-SAT'];
+async function loadMyYearSummary(){
+  if(!S.user)return;
+  if(!S.myYearBsYear)S.myYearBsYear=adToBs(todayISO()).bsY;
+  const titleEl=document.getElementById('myyear-title');
+  const bodyEl=document.getElementById('myyear-body');
+  if(titleEl)titleEl.textContent=S.myYearBsYear+' B.S.';
+  if(bodyEl)bodyEl.innerHTML='<div style="color:var(--text3);font-size:12px;text-align:center;padding:20px">⏳ Loading...</div>';
+  if(!S.scriptUrl)return;
+  try{
+    if(!S.leaveEntitlementsCache){
+      const eRes=await fetch(S.scriptUrl+'?action=getLeaveEntitlements');
+      const eD=await eRes.json();
+      S.leaveEntitlementsCache=eD.entitlements||{};
+    }
+    const fRes=await fetch(S.scriptUrl+'?action=getYearFileIds&bsYear='+S.myYearBsYear);
+    const fD=await fRes.json();
+    const fileIds=(fD.data||[]).map(f=>f.fileId);
+    if(!fileIds.length){
+      if(bodyEl)bodyEl.innerHTML='<div style="color:var(--text3);font-size:12px;text-align:center;padding:20px">No roster data found for '+S.myYearBsYear+' B.S. yet.</div>';
+      return;
+    }
+    const wRes=await fetch(S.scriptUrl+'?action=getWorkloadReport&fileIds='+fileIds.join(','));
+    const wD=await wRes.json();
+    const rows=wD.data||[];
+    const mine=rows.find(r=>r.name===S.user.name&&r.role===S.user.role)||rows.find(r=>r.name===S.user.name);
+    renderMyYear(mine,S.leaveEntitlementsCache);
+  }catch(e){
+    if(bodyEl)bodyEl.innerHTML='<div style="color:var(--red);font-size:12px;text-align:center;padding:20px">Could not load — check connection.</div>';
+  }
+}
+function myYearShiftYear(delta){
+  if(!S.myYearBsYear)S.myYearBsYear=adToBs(todayISO()).bsY;
+  S.myYearBsYear+=delta;
+  loadMyYearSummary();
+}
+function renderMyYear(mine,entitlements){
+  const bodyEl=document.getElementById('myyear-body'); if(!bodyEl)return;
+  if(!mine){
+    bodyEl.innerHTML='<div style="color:var(--text3);font-size:12px;text-align:center;padding:20px">No duty data found for you in this year yet.</div>';
+    return;
+  }
+  const lb=mine.leaveBreakdown||{};
+  const statsHtml=`
+    <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;margin-bottom:16px">
+      <div style="background:var(--card2);border:1px solid var(--border2);border-radius:var(--radius);padding:12px;text-align:center">
+        <div style="font-size:20px;font-weight:800;color:var(--accent)">${mine.dutyDays}</div>
+        <div style="font-size:10px;color:var(--text3);margin-top:2px">Duty Days</div>
+      </div>
+      <div style="background:var(--card2);border:1px solid var(--border2);border-radius:var(--radius);padding:12px;text-align:center">
+        <div style="font-size:20px;font-weight:800;color:var(--yellow)">${mine.leaveDays}</div>
+        <div style="font-size:10px;color:var(--text3);margin-top:2px">Leave Days</div>
+      </div>
+      <div style="background:var(--card2);border:1px solid var(--border2);border-radius:var(--radius);padding:12px;text-align:center">
+        <div style="font-size:20px;font-weight:800;color:var(--text)">${mine.monthsCounted}</div>
+        <div style="font-size:10px;color:var(--text3);margin-top:2px">Months on Record</div>
+      </div>
+    </div>`;
+  const leaveCardsHtml=LEAVE_TYPE_ORDER.map(code=>{
+    const used=lb[code]||0;
+    const cap=Number(entitlements[code])||0;
+    const label=LEAVE_TYPE_LABELS_EN[code]||code;
+    if(!cap){
+      return`<div style="background:var(--card2);border:1px solid var(--border2);border-radius:var(--radius);padding:10px 12px;margin-bottom:8px">
+        <div style="display:flex;justify-content:space-between;align-items:center;font-size:12px">
+          <span style="font-weight:600;color:var(--text)">${label}</span>
+          <span style="color:var(--text3)">${used} used <span style="opacity:.7">(no annual limit)</span></span>
+        </div>
+      </div>`;
+    }
+    const pct=Math.min(100,Math.round((used/cap)*100));
+    const barColor=pct>=100?'var(--red)':pct>=70?'var(--yellow)':'var(--green)';
+    return`<div style="background:var(--card2);border:1px solid var(--border2);border-radius:var(--radius);padding:10px 12px;margin-bottom:8px">
+      <div style="display:flex;justify-content:space-between;align-items:center;font-size:12px;margin-bottom:6px">
+        <span style="font-weight:600;color:var(--text)">${label}</span>
+        <span style="color:${barColor};font-weight:700">${used} / ${cap} days</span>
+      </div>
+      <div style="height:6px;border-radius:4px;background:var(--bg3);overflow:hidden">
+        <div style="height:100%;width:${pct}%;background:${barColor};border-radius:4px"></div>
+      </div>
+    </div>`;
+  }).join('');
+  bodyEl.innerHTML=statsHtml+
+    '<div style="font-size:12px;font-weight:700;color:var(--text2);margin:6px 0 8px">📆 Leave Balance</div>'+
+    leaveCardsHtml;
 }
 function fillSwapForDate(iso){
   const shift=getDuty(iso,S.user.name,S.user.role);
@@ -4480,6 +4601,84 @@ async function exportMonthExcel(fileId,name){
     if(d.url)window.open(d.url,'_blank');
     else alert('❌ Export link तयार गर्न सकिएन।');
   }catch(e){alert('❌ Export failed. Check connection.');}
+}
+// ── Leave Balance (by year) — admin view of every staff's usage vs entitlement ──
+function initLeaveBalanceYearInput(){
+  const el=document.getElementById('lb-year-input');
+  if(el&&!el.value)el.value=adToBs(todayISO()).bsY;
+}
+async function getLeaveEntitlementsCached(force){
+  if(!S.leaveEntitlementsCache||force){
+    const res=await fetch(S.scriptUrl+'?action=getLeaveEntitlements');
+    const d=await res.json();
+    S.leaveEntitlementsCache=d.entitlements||{};
+  }
+  return S.leaveEntitlementsCache;
+}
+async function runLeaveBalanceReport(){
+  const el=document.getElementById('leave-balance-result');
+  const bsYear=parseInt(document.getElementById('lb-year-input').value)||adToBs(todayISO()).bsY;
+  el.innerHTML='<div style="color:var(--text3);font-size:12px;margin-top:8px">⏳ Loading '+bsYear+' B.S. roster files...</div>';
+  try{
+    const entitlements=await getLeaveEntitlementsCached();
+    const fRes=await fetch(S.scriptUrl+'?action=getYearFileIds&bsYear='+bsYear);
+    const fD=await fRes.json();
+    const fileIds=(fD.data||[]).map(f=>f.fileId);
+    if(!fileIds.length){el.innerHTML='<div style="color:var(--text3);font-size:12px;margin-top:8px">No roster files found for '+bsYear+' B.S.</div>';return;}
+    const wRes=await fetch(S.scriptUrl+'?action=getWorkloadReport&fileIds='+fileIds.join(','));
+    const wD=await wRes.json();
+    const rows=(wD.data||[]).sort((a,b)=>a.name.localeCompare(b.name));
+    if(!rows.length){el.innerHTML='<div style="color:var(--text3);font-size:12px;margin-top:8px">No staff data found for '+bsYear+' B.S.</div>';return;}
+    el.innerHTML=`<div style="overflow-x:auto;margin-top:10px"><table style="width:100%;border-collapse:collapse;font-size:11px">
+      <thead><tr style="background:var(--bg3)">
+        <th style="padding:6px;text-align:left;border-bottom:1px solid var(--border)">Name</th>
+        <th style="padding:6px;border-bottom:1px solid var(--border)">Role</th>
+        ${LEAVE_TYPE_ORDER.map(c=>`<th style="padding:6px;border-bottom:1px solid var(--border)" title="${LEAVE_TYPE_LABELS_EN[c]}">${LEAVE_TYPE_LABELS_EN[c].split(' ')[0]}</th>`).join('')}
+      </tr></thead><tbody>
+      ${rows.map(r=>{
+        const lb=r.leaveBreakdown||{};
+        return`<tr>
+        <td style="padding:6px;border-bottom:1px solid var(--border)">${r.name}</td>
+        <td style="padding:6px;text-align:center;border-bottom:1px solid var(--border)">${RLABEL[r.role]||r.role}</td>
+        ${LEAVE_TYPE_ORDER.map(c=>{
+          const used=lb[c]||0; const cap=Number(entitlements[c])||0;
+          if(!cap)return`<td style="padding:6px;text-align:center;border-bottom:1px solid var(--border);color:var(--text3)">${used||'—'}</td>`;
+          const over=used>cap;
+          return`<td style="padding:6px;text-align:center;border-bottom:1px solid var(--border);color:${over?'var(--red)':'var(--text)'};font-weight:${over?'700':'400'}">${used}/${cap}</td>`;
+        }).join('')}
+      </tr>`;}).join('')}
+      </tbody></table></div>
+      <div style="font-size:10px;color:var(--text3);margin-top:8px">Numbers in <span style="color:var(--red);font-weight:700">red</span> mean the staff member has exceeded their annual entitlement for that leave type. "—" columns have no fixed annual cap.</div>`;
+  }catch(e){el.innerHTML='<div style="color:var(--red);font-size:12px;margin-top:8px">Report generation failed.</div>';}
+}
+async function openLeaveEntitlementsEditor(){
+  const box=document.getElementById('leave-entitlements-editor');
+  if(box.style.display==='block'){box.style.display='none';return;}
+  const entitlements=await getLeaveEntitlementsCached(true);
+  box.innerHTML='<div style="font-size:12px;font-weight:700;color:var(--text2);margin-bottom:10px">⚙️ Annual Leave Entitlements (days/year)</div>'+
+    '<div style="display:grid;grid-template-columns:1fr 90px;gap:8px;align-items:center">'+
+    LEAVE_TYPE_ORDER.map(c=>`
+      <label style="font-size:12px;color:var(--text2)">${LEAVE_TYPE_LABELS_EN[c]}</label>
+      <input class="fi" type="number" min="0" data-lcode="${c}" value="${Number(entitlements[c])||0}" style="padding:6px 8px;font-size:12px"/>
+    `).join('')+
+    '</div>'+
+    '<div style="font-size:10px;color:var(--text3);margin-top:8px">Set to 0 for leave types with no fixed annual cap (e.g. compensatory, extraordinary, study leave).</div>'+
+    '<button class="btn-green" onclick="saveLeaveEntitlementsFromEditor()" style="width:100%;margin-top:10px;padding:8px;font-size:12px">💾 Save Entitlements</button>';
+  box.style.display='block';
+}
+async function saveLeaveEntitlementsFromEditor(){
+  const box=document.getElementById('leave-entitlements-editor');
+  const inputs=box.querySelectorAll('[data-lcode]');
+  const entitlements={};
+  inputs.forEach(inp=>{ entitlements[inp.dataset.lcode]=parseInt(inp.value)||0; });
+  try{
+    const res=await fetch(S.scriptUrl,{method:'POST',body:JSON.stringify({action:'saveLeaveEntitlements',entitlements,actorName:S.currentAdmin?.name||'Admin'})});
+    const d=await res.json();
+    if(d.success===false){alert('❌ '+(d.error||'Save failed.'));return;}
+    S.leaveEntitlementsCache=entitlements;
+    box.style.display='none';
+    alert('✅ Leave entitlements updated.');
+  }catch(e){alert('❌ Could not save — check connection.');}
 }
 async function loadAppInstalls(){
   const el=document.getElementById('app-installs-list');
