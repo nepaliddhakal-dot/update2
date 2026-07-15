@@ -976,8 +976,12 @@ textarea.fi{resize:vertical;min-height:80px}
           <option value="role_sdm">⭐ Sr. Div. Met. Only (both sections)</option>
           <option value="role_forecaster">🌤️ Forecaster Only (both sections)</option>
           <option value="role_observer">🔭 Observer Only (both sections)</option>
+          <option value="next_shift">🔄 Next Shift (auto-detect — whoever's on after you)</option>
           <option value="private">🔒 Private — one specific staff member only</option>
         </select>
+      </div>
+      <div class="fg" id="handover-nextshift-wrap" style="display:none">
+        <div id="handover-nextshift-result" style="font-size:12px;padding:10px 12px;border-radius:var(--radius);background:var(--card2);border:1px solid var(--border2);color:var(--text2)">⏳ Detecting who's on next...</div>
       </div>
       <div class="fg" id="handover-addressto-wrap" style="display:none">
         <label class="fl">👤 Send to</label>
@@ -2818,14 +2822,43 @@ function handoverDateShift(days){
 function onHandoverVisibilityChange(){
   const vis=document.getElementById('handover-visibility').value;
   document.getElementById('handover-addressto-wrap').style.display=(vis==='private')?'block':'none';
+  document.getElementById('handover-nextshift-wrap').style.display=(vis==='next_shift')?'block':'none';
+  if(vis==='next_shift')detectNextShiftPerson();
+}
+async function detectNextShiftPerson(){
+  const resultEl=document.getElementById('handover-nextshift-result');
+  const noteDate=document.getElementById('handover-note-date').value||todayISO();
+  S.handoverNextShift=null;
+  if(!S.user||!S.scriptUrl)return;
+  resultEl.textContent='⏳ Detecting who\'s on next...';
+  resultEl.style.color='var(--text2)';
+  try{
+    const res=await fetch(S.scriptUrl+'?action=getNextShiftPerson&name='+encodeURIComponent(S.user.name)+'&date='+encodeURIComponent(noteDate));
+    const d=await res.json();
+    if(d.found){
+      S.handoverNextShift={name:d.name,role:d.role,section:d.section};
+      const roleLabel=RLABEL[d.role]||d.role||'';
+      resultEl.innerHTML='✅ Will be sent privately to <b>'+d.name+'</b>'+(roleLabel?' ('+roleLabel+')':'')+' — on <b>'+(DUTY_NAMES[d.dutyCode]||d.dutyCode)+'</b> duty, '+d.date;
+      resultEl.style.color='var(--green)';
+    }else{
+      resultEl.textContent='⚠️ '+(d.reason||"Couldn't auto-detect who's next.")+' Please pick "Private" and choose someone manually instead.';
+      resultEl.style.color='var(--yellow)';
+    }
+  }catch(e){
+    resultEl.textContent='⚠️ Could not check the roster — please pick "Private" and choose someone manually instead.';
+    resultEl.style.color='var(--yellow)';
+  }
 }
 function openHandoverModal(){
   if(!S.user){alert('Please login first');return;}
   document.getElementById('handover-note-text').value='';
   document.getElementById('handover-err').textContent='';
   document.getElementById('handover-note-date').value=S.handoverDate||todayISO();
+  document.getElementById('handover-note-date').onchange=function(){ if(document.getElementById('handover-visibility').value==='next_shift')detectNextShiftPerson(); };
   document.getElementById('handover-visibility').value='role_section';
   document.getElementById('handover-addressto-wrap').style.display='none';
+  document.getElementById('handover-nextshift-wrap').style.display='none';
+  S.handoverNextShift=null;
   const sel=document.getElementById('handover-addressto');
   if(sel){
     // Address-To lists EVERY staff member across both sections — sender decides
@@ -2847,16 +2880,20 @@ function openHandoverModal(){
 async function submitHandoverNote(){
   const note=document.getElementById('handover-note-text').value.trim();
   const noteDate=document.getElementById('handover-note-date').value||todayISO();
-  const visibility=document.getElementById('handover-visibility').value;
+  let visibility=document.getElementById('handover-visibility').value;
   const addressSel=document.getElementById('handover-addressto');
-  const addressedTo=(visibility==='private')?addressSel.value:'';
-  // The recipient may be in a different section/role than the sender, so their
-  // actual role (needed to find their FCM token) has to travel with the request —
-  // it can't be assumed to match the sender's own role.
-  const addressedToRole=addressedTo?(addressSel.selectedOptions[0]?.dataset.role||''):'';
+  let addressedTo=(visibility==='private')?addressSel.value:'';
+  let addressedToRole=addressedTo?(addressSel.selectedOptions[0]?.dataset.role||''):'';
   const err=document.getElementById('handover-err');
   if(!note){err.textContent='❌ Please write a note';return;}
   if(visibility==='private'&&!addressedTo){err.textContent='❌ Since you chose Private, please select who to send it to';return;}
+  if(visibility==='next_shift'){
+    if(!S.handoverNextShift){err.textContent='❌ Could not auto-detect the next shift — pick "Private" and choose someone manually instead.';return;}
+    // Piggyback on the existing private-note delivery — it's addressed to one person either way.
+    visibility='private';
+    addressedTo=S.handoverNextShift.name;
+    addressedToRole=RLABEL[S.handoverNextShift.role]||S.handoverNextShift.role||'';
+  }
   if(!S.scriptUrl){err.textContent='❌ Script URL not configured';return;}
   err.textContent='⏳ Saving...';
   const payload={
