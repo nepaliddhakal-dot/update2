@@ -427,7 +427,7 @@ textarea.fi{resize:vertical;min-height:80px}
       <button class="icon-btn" id="theme-toggle-btn" onclick="toggleTheme()" title="Theme">🌙</button>
       <button class="icon-btn" id="notif-icon-btn" onclick="toggleNotifFromIcon()" title="Notifications">🔔</button>
       <button class="icon-btn" onclick="openNotifPrefsModal()" title="Notification Settings">⚙️</button>
-      <button class="icon-btn" onclick="openProfileModal()" title="Profile">👤</button>
+      <button class="icon-btn" id="hdr-profile-btn" onclick="openProfileModal()" title="Profile"><span id="hdr-profile-btn-inner">👤</span></button>
     </div>
   </div>
   <div class="ah-mid" id="ah-mid">
@@ -478,12 +478,9 @@ textarea.fi{resize:vertical;min-height:80px}
           <button onclick="handoverDateShift(1)" style="background:none;border:none;color:var(--text3);font-size:16px;cursor:pointer;padding:2px 8px">›</button>
         </div>
         <select class="fi" id="handover-filter" onchange="renderHandoverNotesFiltered()" style="font-size:11px;padding:6px 8px;margin-bottom:8px">
-          <option value="this_section">यही Section (मेरो section)</option>
-          <option value="other_section">अर्को Section</option>
-          <option value="all_sections">दुबै Section (सबै)</option>
-          <option value="sdm">⭐ Sr. Div. Met. मात्र</option>
-          <option value="forecaster">🌤️ Forecaster मात्र</option>
-          <option value="observer">🔭 Observer मात्र</option>
+          <option value="this_section">This Section (mine)</option>
+          <option value="other_section">Other Section</option>
+          <option value="all_sections">Both Sections (all)</option>
         </select>
         <div id="handover-notes-list"><div style="color:var(--text3);font-size:12px">⏳ Loading...</div></div>
       </div>
@@ -943,21 +940,24 @@ textarea.fi{resize:vertical;min-height:80px}
     <div style="width:36px;height:4px;background:var(--border);border-radius:2px;margin:12px auto 14px"></div>
     <div style="font-size:16px;font-weight:700;padding:0 18px 12px;border-bottom:1px solid var(--border)">📋 Shift Handover Note</div>
     <div style="padding:14px 18px;display:flex;flex-direction:column;gap:12px">
-      <div class="fg"><label class="fl">📅 DATE (कुन दिनको लागि — आज, भोलि, वा जुनसुकै)</label><input class="fi" type="date" id="handover-note-date"/></div>
-      <div class="fg"><label class="fl">NOTE / जानकारी</label><textarea class="fi" id="handover-note-text" rows="4" placeholder="जस्तै: Wind sensor slow भइरहेको छ, ध्यान दिनुहोस्..."></textarea></div>
+      <div class="fg"><label class="fl">📅 DATE (which day this note is for — today, tomorrow, or any date)</label><input class="fi" type="date" id="handover-note-date"/></div>
+      <div class="fg"><label class="fl">NOTE / INFO</label><textarea class="fi" id="handover-note-text" rows="4" placeholder="e.g. Wind sensor running slow, please keep an eye on it..."></textarea></div>
       <div class="fg">
-        <label class="fl">👁️ कसले देख्ने?</label>
+        <label class="fl">👁️ Who should see this?</label>
         <select class="fi" id="handover-visibility" onchange="onHandoverVisibilityChange()">
-          <option value="role_section">यही Section + यही Role (जस्तै Forecaster ले Forecaster लाई)</option>
-          <option value="role_both">दुबै Section, यही Role (जस्तै सबै Forecaster हरू)</option>
-          <option value="all">सबैलाई (whole app — section/role नभनी)</option>
-          <option value="private">🔒 Private — एक जना specific staff लाई मात्र</option>
+          <option value="role_section">Same Section + Same Role (e.g. Forecaster to Forecaster)</option>
+          <option value="role_both">Same Role, Both Sections (e.g. all Forecasters)</option>
+          <option value="all">Everyone (whole app — no section/role limit)</option>
+          <option value="role_sdm">⭐ Sr. Div. Met. Only (both sections)</option>
+          <option value="role_forecaster">🌤️ Forecaster Only (both sections)</option>
+          <option value="role_observer">🔭 Observer Only (both sections)</option>
+          <option value="private">🔒 Private — one specific staff member only</option>
         </select>
       </div>
       <div class="fg" id="handover-addressto-wrap" style="display:none">
-        <label class="fl">👤 कस लाई पठाउने</label>
-        <select class="fi" id="handover-addressto"><option value="">-- छान्नुहोस् --</option></select>
-        <div style="font-size:11px;color:var(--text3);margin-top:4px">यो व्यक्तिलाई मात्र देखिन्छ, र personal notification पनि जान्छ।</div>
+        <label class="fl">👤 Send to</label>
+        <select class="fi" id="handover-addressto"><option value="">-- Select --</option></select>
+        <div style="font-size:11px;color:var(--text3);margin-top:4px">Only this person will see it, and they'll also get a personal notification.</div>
       </div>
       <div id="handover-err" style="font-size:12px;color:var(--red);min-height:16px"></div>
       <button class="btn-green" onclick="submitHandoverNote()">📋 Save Note</button>
@@ -1004,9 +1004,14 @@ textarea.fi{resize:vertical;min-height:80px}
 <div id="profile-modal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.75);z-index:1002;align-items:center;justify-content:center;padding:16px">
   <div style="background:var(--card);border-radius:var(--radius);padding:20px;max-width:400px;width:100%;max-height:85vh;overflow-y:auto">
     <div style="text-align:center;margin-bottom:18px">
-      <div style="width:56px;height:56px;border-radius:50%;background:var(--accent);color:#04202b;font-size:22px;font-weight:800;display:flex;align-items:center;justify-content:center;margin:0 auto 10px" id="profile-avatar">--</div>
+      <div style="position:relative;width:72px;height:72px;margin:0 auto 10px">
+        <div style="width:72px;height:72px;border-radius:50%;background:var(--accent);color:#04202b;font-size:26px;font-weight:800;display:flex;align-items:center;justify-content:center;overflow:hidden" id="profile-avatar">--</div>
+        <button onclick="document.getElementById('profile-photo-input').click()" title="Change photo" style="position:absolute;right:-2px;bottom:-2px;width:26px;height:26px;border-radius:50%;background:var(--card2);border:1.5px solid var(--bg);color:var(--text);font-size:12px;display:flex;align-items:center;justify-content:center;cursor:pointer;padding:0">📷</button>
+        <input type="file" id="profile-photo-input" accept="image/*" style="display:none" onchange="handleProfilePhotoFile(event)"/>
+      </div>
       <div style="font-size:17px;font-weight:700" id="profile-name">--</div>
       <div style="font-size:12px;color:var(--text3);margin-top:2px" id="profile-role-section">--</div>
+      <div id="profile-photo-status" style="font-size:11px;color:var(--text3);margin-top:4px;min-height:14px"></div>
     </div>
     <div style="display:flex;flex-direction:column;gap:8px">
       <button class="btn-outline" onclick="document.getElementById('profile-modal').style.display='none';openChangePasswordModal()" style="text-align:left;display:flex;justify-content:space-between">🔒 Change Password</button>
@@ -1744,6 +1749,8 @@ function enterApp(){
   flushPendingSwapRequests();
   updatePendingHandoverBadge();
   flushPendingHandoverNotes();
+  refreshProfileAvatarUI(); // show any cached photo immediately
+  loadProfilePhoto();       // then refresh from server in the background
   document.getElementById('hdr-name').textContent=S.user.name;
   document.getElementById('hdr-role-badge').style.display='';
   document.getElementById('hdr-role-badge').textContent=RICON[S.user.role]+' '+RLABEL[S.user.role];
@@ -2800,7 +2807,7 @@ function openHandoverModal(){
     const others=(S.staffFlat||[]).filter(s=>s.name!==S.user.name);
     const bySec={avia:[],weather:[]};
     others.forEach(s=>{(bySec[s.section]||(bySec[s.section]=[])).push(s);});
-    let opts='<option value="">-- छान्नुहोस् --</option>';
+    let opts='<option value="">-- Select --</option>';
     for(const sec of['avia','weather']){
       if(!bySec[sec]||!bySec[sec].length)continue;
       opts+=`<optgroup label="${sec==='avia'?'✈️ TIA Aviation Met':'🌦️ Weather Forecasting'}">`+
@@ -2822,8 +2829,8 @@ async function submitHandoverNote(){
   // it can't be assumed to match the sender's own role.
   const addressedToRole=addressedTo?(addressSel.selectedOptions[0]?.dataset.role||''):'';
   const err=document.getElementById('handover-err');
-  if(!note){err.textContent='❌ जानकारी लेख्नुहोस्';return;}
-  if(visibility==='private'&&!addressedTo){err.textContent='❌ Private छान्नुभयो भने कस लाई पठाउने छान्नुहोस्';return;}
+  if(!note){err.textContent='❌ Please write a note';return;}
+  if(visibility==='private'&&!addressedTo){err.textContent='❌ Since you chose Private, please select who to send it to';return;}
   if(!S.scriptUrl){err.textContent='❌ Script URL not configured';return;}
   err.textContent='⏳ Saving...';
   const payload={
@@ -2833,7 +2840,7 @@ async function submitHandoverNote(){
   if(!navigator.onLine){
     queuePendingHandoverNote(payload);
     document.getElementById('handover-modal').style.display='none';
-    alert('📴 अहिले Internet छैन — तपाईंको note save भयो, connection फर्किएपिच्छे आफै पठाइनेछ।');
+    alert('📴 No internet right now — your note has been saved and will send automatically once the connection is back.');
     return;
   }
   try{
@@ -2846,7 +2853,7 @@ async function submitHandoverNote(){
   }catch(e){
     queuePendingHandoverNote(payload);
     document.getElementById('handover-modal').style.display='none';
-    alert('📴 पठाउन सकिएन (weak connection) — तपाईंको note save भयो, connection फर्किएपिच्छे आफै पठाइनेछ।');
+    alert('📴 Could not send (weak connection) — your note has been saved and will send automatically once the connection is back.');
   }
 }
 // ── Offline queue for handover notes — mirrors the swap-request queue.
@@ -2889,7 +2896,7 @@ async function flushPendingHandoverNotes(){
     loadHandoverNotes();
   }
 }
-const HANDOVER_VIS_LABEL={all:'🌐 All',role_section:'👥 Same Role+Section',role_both:'👥 Same Role (both sections)',private:'🔒 Private'};
+const HANDOVER_VIS_LABEL={all:'🌐 All',role_section:'👥 Same Role+Section',role_both:'👥 Same Role (both sections)',role_sdm:'⭐ Sr. Div. Met. Only',role_forecaster:'🌤️ Forecaster Only',role_observer:'🔭 Observer Only',private:'🔒 Private'};
 async function loadHandoverNotes(){
   const card=document.getElementById('handover-card'), el=document.getElementById('handover-notes-list');
   if(!card||!el||!S.user||S.guestMode)return;
@@ -2915,11 +2922,8 @@ function renderHandoverNotesFiltered(){
   let notes=S.handoverNotesRaw||[];
   if(filter==='this_section')notes=notes.filter(n=>n.section===mySec);
   else if(filter==='other_section')notes=notes.filter(n=>n.section!==mySec);
-  else if(filter==='sdm')notes=notes.filter(n=>n.role===RLABEL.sdm);
-  else if(filter==='forecaster')notes=notes.filter(n=>n.role===RLABEL.forecaster);
-  else if(filter==='observer')notes=notes.filter(n=>n.role===RLABEL.observer);
   // 'all_sections' — no extra filter beyond what the server already allowed us to see
-  if(!notes.length){el.innerHTML='<div style="color:var(--text3);font-size:12px">यो filter मा कुनै note छैन।</div>';return;}
+  if(!notes.length){el.innerHTML='<div style="color:var(--text3);font-size:12px">No notes match this filter.</div>';return;}
   el.innerHTML=notes.map(n=>{
     const isPrivate=n.visibility==='private';
     const crossContext=(n.section!==mySec||n.role!==myRoleLabel);
@@ -3578,7 +3582,8 @@ async function saveNotifPrefs(){
 }
 function openProfileModal(){
   if(S.guestMode||!S.user){logout();return;} // guest has no profile — this icon just exits, as before
-  document.getElementById('profile-avatar').textContent=(S.user.name||'?').trim().charAt(0).toUpperCase();
+  renderAvatarBox('profile-avatar',S.user.name,S.user.photo);
+  document.getElementById('profile-photo-status').textContent='';
   document.getElementById('profile-name').textContent=S.user.name;
   document.getElementById('profile-role-section').textContent=RICON[S.user.role]+' '+RLABEL[S.user.role]+' · '+(SEC_LABEL[S.user.section]||S.user.section||'');
   // Reminders: count how many this user currently has set (stored per-date in localStorage)
@@ -3590,6 +3595,94 @@ function openProfileModal(){
   const myNotesToday=(S.handoverNotesRaw||[]).filter(n=>n.author===S.user.name).length;
   document.getElementById('profile-notes-count').textContent=myNotesToday?myNotesToday+' today':'0 today';
   document.getElementById('profile-modal').style.display='flex';
+}
+// ── Profile photo: render as circular image if set, else initials ──
+function renderAvatarBox(elId,name,photo){
+  const el=document.getElementById(elId); if(!el)return;
+  el.innerHTML=photo
+    ? '<img src="'+photo+'" style="width:100%;height:100%;object-fit:cover">'
+    : (name||'?').trim().charAt(0).toUpperCase();
+}
+function refreshProfileAvatarUI(){
+  if(!S.user)return;
+  renderAvatarBox('profile-avatar',S.user.name,S.user.photo);
+  const inner=document.getElementById('hdr-profile-btn-inner'); if(!inner)return;
+  inner.innerHTML=S.user.photo
+    ? '<img src="'+S.user.photo+'" style="width:34px;height:34px;object-fit:cover;border-radius:50%">'
+    : '👤';
+}
+function resizeImageFile(file,maxSize,quality){
+  return new Promise((resolve,reject)=>{
+    const reader=new FileReader();
+    reader.onerror=()=>reject(new Error('read failed'));
+    reader.onload=()=>{
+      const img=new Image();
+      img.onerror=()=>reject(new Error('decode failed'));
+      img.onload=()=>{
+        let w=img.width,h=img.height;
+        if(w>h){ if(w>maxSize){h=Math.round(h*maxSize/w);w=maxSize;} }
+        else{ if(h>maxSize){w=Math.round(w*maxSize/h);h=maxSize;} }
+        const canvas=document.createElement('canvas');
+        canvas.width=w;canvas.height=h;
+        canvas.getContext('2d').drawImage(img,0,0,w,h);
+        resolve(canvas.toDataURL('image/jpeg',quality));
+      };
+      img.src=reader.result;
+    };
+    reader.readAsDataURL(file);
+  });
+}
+async function handleProfilePhotoFile(event){
+  const file=event.target.files&&event.target.files[0];
+  const statusEl=document.getElementById('profile-photo-status');
+  if(!file)return;
+  if(!file.type.startsWith('image/')){
+    if(statusEl){statusEl.textContent='❌ Please choose an image file';statusEl.style.color='var(--red)';}
+    event.target.value='';return;
+  }
+  if(statusEl){statusEl.textContent='⏳ Processing...';statusEl.style.color='var(--text3)';}
+  try{
+    const dataUrl=await resizeImageFile(file,300,0.8);
+    await uploadProfilePhoto(dataUrl);
+  }catch(e){
+    if(statusEl){statusEl.textContent='❌ Could not process photo';statusEl.style.color='var(--red)';}
+  }finally{
+    event.target.value=''; // allow re-selecting the same file later
+  }
+}
+async function uploadProfilePhoto(dataUrl){
+  const statusEl=document.getElementById('profile-photo-status');
+  if(!S.scriptUrl||!S.user)return;
+  if(statusEl){statusEl.textContent='⏳ Uploading...';statusEl.style.color='var(--text3)';}
+  try{
+    const res=await fetch(S.scriptUrl,{method:'POST',body:JSON.stringify({action:'saveProfilePhoto',name:S.user.name,role:RLABEL[S.user.role],photo:dataUrl})});
+    const d=await res.json();
+    if(d.success===false){
+      if(statusEl){statusEl.textContent='❌ '+(d.error||'Upload failed');statusEl.style.color='var(--red)';}
+      return;
+    }
+    S.user.photo=dataUrl;
+    localStorage.setItem('mfd_user',JSON.stringify(S.user));
+    refreshProfileAvatarUI();
+    if(statusEl){
+      statusEl.textContent='✅ Photo updated';statusEl.style.color='var(--green)';
+      setTimeout(()=>{if(statusEl.textContent==='✅ Photo updated')statusEl.textContent='';},2500);
+    }
+  }catch(e){
+    if(statusEl){statusEl.textContent='❌ Could not upload — check connection';statusEl.style.color='var(--red)';}
+  }
+}
+async function loadProfilePhoto(){
+  if(!S.scriptUrl||!S.user)return;
+  try{
+    const res=await fetch(S.scriptUrl+'?action=getProfilePhoto&name='+encodeURIComponent(S.user.name)+'&role='+encodeURIComponent(RLABEL[S.user.role]||''));
+    const d=await res.json();
+    if(d.photo){
+      S.user.photo=d.photo;
+      localStorage.setItem('mfd_user',JSON.stringify(S.user));
+      refreshProfileAvatarUI();
+    }
+  }catch(e){ /* silent — cached photo (if any) stays shown */ }
 }
 function profileGoTo(tab,tabIndex){
   document.getElementById('profile-modal').style.display='none';
