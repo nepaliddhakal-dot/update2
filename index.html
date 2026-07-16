@@ -492,9 +492,6 @@ textarea.fi{resize:vertical;min-height:80px}
     </div>
     <!-- MY DUTIES — clean rows, no colleague list; click row to see details -->
     <div class="tab-panel" id="tab-myduties">
-      <div style="padding:10px 12px 0">
-        <button class="btn-outline" onclick="openMyYearModal()" style="width:100%;padding:8px;font-size:12px">📊 View My Year-to-Date Leave Balance</button>
-      </div>
       <div class="month-nav">
         <div style="display:flex;flex-direction:column;align-items:flex-start;min-width:80px">
           <button class="nav-arrow" onclick="mdPrev()" style="padding:0">‹</button>
@@ -762,9 +759,9 @@ textarea.fi{resize:vertical;min-height:80px}
 
       <!-- Annual leave balance vs entitlement, per staff -->
       <div class="a-card-title">🎯 Leave Balance (by year)</div>
-      <div class="a-info">Automatically pulls every roster file for the chosen B.S. year and compares each staff member's leave usage to their annual entitlement.</div>
+      <div class="a-info">Automatically pulls every roster file for the chosen fiscal year (Shrawan → next Ashar, matching the government's official year) and compares each staff member's leave usage to their annual entitlement.</div>
       <div style="display:flex;gap:8px;align-items:center;margin:8px 0;flex-wrap:wrap">
-        <input class="fi" type="number" id="lb-year-input" style="width:100px;padding:6px 10px;font-size:12px" placeholder="e.g. 2083"/>
+        <input class="fi" type="number" id="lb-year-input" style="width:140px;padding:6px 10px;font-size:12px" placeholder="e.g. 2082 (Shrawan start)"/>
         <button class="btn-outline" onclick="runLeaveBalanceReport()" style="padding:6px 12px;font-size:12px">📊 Load Year</button>
         <button class="btn-outline" onclick="openLeaveEntitlementsEditor()" style="padding:6px 12px;font-size:12px">⚙️ Edit Entitlements</button>
       </div>
@@ -781,7 +778,7 @@ textarea.fi{resize:vertical;min-height:80px}
         <select class="fi" id="lo-staff" style="padding:6px 10px;font-size:12px"><option value="">-- Select staff --</option></select>
         <div style="display:flex;gap:6px;flex-wrap:wrap">
           <select class="fi" id="lo-leavecode" style="flex:1;min-width:140px;padding:6px 10px;font-size:12px"></select>
-          <input class="fi" type="number" id="lo-year" placeholder="B.S. Year (blank = every year)" style="width:170px;padding:6px 10px;font-size:12px"/>
+          <input class="fi" type="number" id="lo-year" placeholder="Fiscal Year, e.g. 2082 (blank = every year)" style="width:230px;padding:6px 10px;font-size:12px"/>
           <input class="fi" type="number" min="0" id="lo-value" placeholder="Total days/year" style="width:120px;padding:6px 10px;font-size:12px"/>
         </div>
         <button class="btn-outline" onclick="saveStaffLeaveOverride()" style="padding:6px 12px;font-size:12px">💾 Save Override</button>
@@ -794,12 +791,13 @@ textarea.fi{resize:vertical;min-height:80px}
         <select class="fi" id="lg-staff" style="padding:6px 10px;font-size:12px"><option value="">-- All Staff --</option></select>
         <div style="display:flex;gap:6px;flex-wrap:wrap">
           <select class="fi" id="lg-leavecode" style="flex:1;min-width:140px;padding:6px 10px;font-size:12px"></select>
-          <input class="fi" type="number" id="lg-year" placeholder="B.S. Year" style="width:100px;padding:6px 10px;font-size:12px"/>
-          <input class="fi" type="number" min="1" max="12" id="lg-month" placeholder="B.S. Month (1-12)" style="width:130px;padding:6px 10px;font-size:12px"/>
+          <select class="fi" id="lg-month" style="width:130px;padding:6px 10px;font-size:12px"></select>
+          <input class="fi" type="number" id="lg-year" placeholder="B.S. Year (e.g. 2083)" style="width:130px;padding:6px 10px;font-size:12px"/>
           <input class="fi" type="number" id="lg-value" placeholder="+/- days" style="width:100px;padding:6px 10px;font-size:12px"/>
         </div>
         <input class="fi" type="text" id="lg-note" placeholder="Note (e.g. Dashain holiday)" style="padding:6px 10px;font-size:12px"/>
         <button class="btn-outline" onclick="saveMonthlyLeaveGrant()" style="padding:6px 12px;font-size:12px">💾 Add Grant</button>
+        <div style="font-size:10px;color:var(--text3)">Enter the ordinary B.S. year shown on the roster for that month (e.g. Ashar 2083) — it's automatically placed into the right fiscal year (Shrawan–Ashar) behind the scenes.</div>
       </div>
 
       <!-- Combined list of every override/grant on record, with delete -->
@@ -1402,6 +1400,10 @@ function bsToAd(bsY,bsM,bsD){
 }
 function toNepali(iso){if(!iso)return'';const{bsY,bsM,bsD}=adToBs(iso);return toNpNum(bsD)+' '+NP_MONTHS[bsM];}
 function getCurrentBsMonth(){const{bsY,bsM}=adToBs(todayISO());return{bsY,bsM};}
+// Nepal's official (fiscal) year runs Shrawan 1 → next Ashar-end, not
+// Baishakh → Chaitra. bsM is 0-indexed (0=Baishakh...3=Shrawan...11=Chaitra).
+function getFiscalYearFor(bsY,bsM){ return bsM>=3 ? bsY : bsY-1; }
+function getCurrentFiscalYear(){ const{bsY,bsM}=adToBs(todayISO()); return getFiscalYearFor(bsY,bsM); }
 function buildBsHeader(bsY,bsM){
   const first=bsToAd(bsY,bsM,1);const last=bsToAd(bsY,bsM,bsMonthDays(bsY,bsM));
   const fa=new Date(first),la=new Date(last);
@@ -2040,75 +2042,13 @@ function renderMyDuties(){
   }else{sumHtml='<div style="padding:20px;text-align:center;color:var(--text3);font-size:13px">No roster data for this month.</div>';}
   document.getElementById('md-list').innerHTML=html+sumHtml+`
     <div style="padding:0 12px 12px">
-      <button onclick="showMyYearSummary()" style="width:100%;padding:12px;background:var(--card2);color:var(--text);border:1px solid var(--border2);font-size:13px;font-weight:700;border-radius:var(--radius);cursor:pointer;display:flex;align-items:center;justify-content:center;gap:8px;margin-bottom:8px">
+      <button onclick="openMyYearModal()" style="width:100%;padding:12px;background:var(--card2);color:var(--text);border:1px solid var(--border2);font-size:13px;font-weight:700;border-radius:var(--radius);cursor:pointer;display:flex;align-items:center;justify-content:center;gap:8px;margin-bottom:8px">
         📊 View My Year-to-Date Leave Balance
       </button>
       <button onclick="generateMyDutyPDF(${bsY},${bsM})" style="width:100%;padding:12px;background:var(--accent);color:#000;font-size:13px;font-weight:700;border:none;border-radius:var(--radius);cursor:pointer;display:flex;align-items:center;justify-content:center;gap:8px">
         📄 Download Monthly Report PDF
       </button>
     </div>`;
-}
-async function showMyYearSummary(){
-  if(!S.user)return;
-  const modal=document.getElementById('day-modal')||document.body;
-  const box=document.createElement('div');
-  box.style.cssText='position:fixed;inset:0;z-index:9999;background:rgba(0,0,0,.6);display:flex;align-items:center;justify-content:center;padding:16px';
-  box.innerHTML=`<div style="background:var(--card);border-radius:var(--radius);padding:20px;max-width:420px;width:100%;max-height:85vh;overflow-y:auto">
-    <div style="font-size:15px;font-weight:700;margin-bottom:10px">📊 ${S.user.name} — Year-to-Date</div>
-    <div id="year-summary-body" style="font-size:13px;color:var(--text2)">⏳ Loading...</div>
-    <button onclick="this.closest('div[style*=fixed]').remove()" style="margin-top:14px;width:100%;padding:10px;background:var(--card2);border:1px solid var(--border2);border-radius:8px;color:var(--text);font-size:13px;cursor:pointer">Close</button>
-  </div>`;
-  document.body.appendChild(box);
-  try{
-    const filesRes=await fetch(S.scriptUrl+'?action=getMonthFiles');
-    const filesD=await filesRes.json();
-    const fileIds=(filesD.data||[]).map(f=>f.fileId);
-    if(!fileIds.length){document.getElementById('year-summary-body').innerHTML='No monthly files found.';return;}
-    const res=await fetch(S.scriptUrl+'?action=getWorkloadReport&fileIds='+fileIds.join(','));
-    const d=await res.json();
-    const mine=(d.data||[]).find(r=>r.name===S.user.name);
-    const body=document.getElementById('year-summary-body');
-    if(!mine){body.innerHTML='No data found yet for you across saved months.';return;}
-
-    // ── Overall totals ──
-    let html=`
-      <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:6px">
-        <div class="summary-item"><div class="si-shift-label">कुल Duty दिन</div><div class="si-count duty">${mine.dutyDays}<span style="font-size:12px;font-weight:400"> दिन</span></div></div>
-        <div class="summary-item"><div class="si-shift-label">कुल बिदा दिन</div><div class="si-count offc">${mine.leaveDays}<span style="font-size:12px;font-weight:400"> दिन</span></div></div>
-      </div>
-      <div style="margin-top:6px;font-size:11px;color:var(--text3)">${mine.monthsCounted} महिनाको saved data आधारमा गणना गरिएको।</div>`;
-
-    // ── Leave-type breakdown ──
-    const leaveEntries=Object.entries(mine.leaveBreakdown||{}).filter(([k,v])=>v>0).sort((a,b)=>b[1]-a[1]);
-    if(leaveEntries.length){
-      html+=`<div style="margin-top:16px;font-size:12px;font-weight:700;color:var(--text2)">🏖️ बिदा प्रकार अनुसार</div>
-        <div style="display:flex;flex-direction:column;gap:6px;margin-top:8px">
-        ${leaveEntries.map(([k,v])=>`
-          <div style="display:flex;justify-content:space-between;align-items:center;background:var(--bg3);border-radius:8px;padding:8px 12px">
-            <span style="font-size:12px">${BIDA_LABELS_GLOBAL[k]||k}</span>
-            <span style="font-size:13px;font-weight:700;color:var(--yellow)">${v} दिन</span>
-          </div>`).join('')}
-        </div>`;
-    }
-
-    // ── Month-wise breakdown ──
-    const months=(mine.perMonth||[]).sort((a,b)=>a.month.localeCompare(b.month));
-    if(months.length){
-      html+=`<div style="margin-top:16px;font-size:12px;font-weight:700;color:var(--text2)">📅 महिना अनुसार</div>
-        <div style="display:flex;flex-direction:column;gap:6px;margin-top:8px">
-        ${months.map(m=>`
-          <div style="background:var(--bg3);border-radius:8px;padding:8px 12px">
-            <div style="display:flex;justify-content:space-between;align-items:center">
-              <span style="font-size:12px;font-weight:600">${m.month.replace(/_/g,' ')}</span>
-              <span style="font-size:11px;color:var(--text3)">Duty: <b style="color:var(--accent)">${m.dutyDays}</b> · बिदा: <b style="color:var(--yellow)">${m.leaveDays}</b></span>
-            </div>
-            ${Object.keys(m.leaveBreakdown||{}).length?`<div style="font-size:10px;color:var(--text3);margin-top:4px">${Object.entries(m.leaveBreakdown).map(([k,v])=>(BIDA_LABELS_GLOBAL[k]||k)+' '+v).join(' · ')}</div>`:''}
-          </div>`).join('')}
-        </div>`;
-    }
-
-    body.innerHTML=html;
-  }catch(e){document.getElementById('year-summary-body').innerHTML='<span style="color:var(--red)">Load failed. Check connection.</span>';}
 }
 
 // ── CALENDAR ──
@@ -3071,10 +3011,10 @@ function openMyYearModal(){
 }
 async function loadMyYearSummary(){
   if(!S.user)return;
-  if(!S.myYearBsYear)S.myYearBsYear=adToBs(todayISO()).bsY;
+  if(!S.myYearBsYear)S.myYearBsYear=getCurrentFiscalYear();
   const titleEl=document.getElementById('myyear-title');
   const bodyEl=document.getElementById('myyear-body');
-  if(titleEl)titleEl.textContent=S.myYearBsYear+' B.S.';
+  if(titleEl)titleEl.textContent=S.myYearBsYear+'/'+String(S.myYearBsYear+1).slice(-2)+' B.S. (Shrawan–Ashar)';
   if(bodyEl)bodyEl.innerHTML='<div style="color:var(--text3);font-size:12px;text-align:center;padding:20px">⏳ Loading...</div>';
   if(!S.scriptUrl)return;
   try{
@@ -3087,7 +3027,7 @@ async function loadMyYearSummary(){
     const fD=await fRes.json();
     const fileIds=(fD.data||[]).map(f=>f.fileId);
     if(!fileIds.length){
-      if(bodyEl)bodyEl.innerHTML='<div style="color:var(--text3);font-size:12px;text-align:center;padding:20px">No roster data found for '+S.myYearBsYear+' B.S. yet.</div>';
+      if(bodyEl)bodyEl.innerHTML='<div style="color:var(--text3);font-size:12px;text-align:center;padding:20px">No roster data found for '+S.myYearBsYear+'/'+String(S.myYearBsYear+1).slice(-2)+' B.S. yet.</div>';
       return;
     }
     const wRes=await fetch(S.scriptUrl+'?action=getWorkloadReport&fileIds='+fileIds.join(','));
@@ -3101,7 +3041,7 @@ async function loadMyYearSummary(){
   }
 }
 function myYearShiftYear(delta){
-  if(!S.myYearBsYear)S.myYearBsYear=adToBs(todayISO()).bsY;
+  if(!S.myYearBsYear)S.myYearBsYear=getCurrentFiscalYear();
   S.myYearBsYear+=delta;
   loadMyYearSummary();
 }
@@ -4702,7 +4642,7 @@ async function exportMonthExcel(fileId,name){
 // ── Leave Balance (by year) — admin view of every staff's usage vs entitlement ──
 function initLeaveBalanceYearInput(){
   const el=document.getElementById('lb-year-input');
-  const curYear=adToBs(todayISO()).bsY;
+  const curYear=getCurrentFiscalYear();
   if(el&&!el.value)el.value=curYear;
 
   // Populate the leave-type dropdowns (can't use JS template literals inside static HTML)
@@ -4713,7 +4653,16 @@ function initLeaveBalanceYearInput(){
     lgCode.innerHTML=LEAVE_TYPE_ORDER.map(c=>`<option value="${c}"${c==='BIDA-SAT'?' selected':''}>${LEAVE_TYPE_LABELS_EN[c]}</option>`).join('');
     lgCode.dataset.filled='1';
   }
-  const lgYear=document.getElementById('lg-year'); if(lgYear&&!lgYear.value)lgYear.value=curYear;
+  // Month-name dropdown for the grant form (avoids ambiguity over which "year" a raw 1-12 number belongs to)
+  const lgMonth=document.getElementById('lg-month');
+  if(lgMonth&&!lgMonth.dataset.filled){
+    const monthNames=['BAISHAKH','JESTHA','ASHAR','SHRAWAN','BHADRA','ASHWIN','KARTIK','MANGSIR','POUSH','MAGH','FALGUN','CHAITRA'];
+    const curBsM=adToBs(todayISO()).bsM; // 0-indexed
+    lgMonth.innerHTML=monthNames.map((m,i)=>`<option value="${m}"${i===curBsM?' selected':''}>${m.charAt(0)+m.slice(1).toLowerCase()}</option>`).join('');
+    lgMonth.dataset.filled='1';
+  }
+  // Grants use the ordinary CALENDAR year of that month (e.g. Ashar 2083), not the fiscal year
+  const lgYear=document.getElementById('lg-year'); if(lgYear&&!lgYear.value)lgYear.value=adToBs(todayISO()).bsY;
 
   // Populate the staff dropdowns from S.staffFlat
   const staffOptsHtml=(S.staffFlat||[]).slice().sort((a,b)=>a.name.localeCompare(b.name))
@@ -4757,7 +4706,7 @@ async function recalcAllSummaries(){
 }
 async function runLeaveBalanceReport(){
   const el=document.getElementById('leave-balance-result');
-  const bsYear=parseInt(document.getElementById('lb-year-input').value)||adToBs(todayISO()).bsY;
+  const bsYear=parseInt(document.getElementById('lb-year-input').value)||getCurrentFiscalYear();
   el.innerHTML='<div style="color:var(--text3);font-size:12px;margin-top:8px">⏳ Loading '+bsYear+' B.S. roster files...</div>';
   try{
     const cfg=await getLeaveConfigCached();
@@ -4866,7 +4815,7 @@ async function saveMonthlyLeaveGrant(){
     document.getElementById('lg-value').value='';
     document.getElementById('lg-note').value='';
     S.leaveConfigCache=null;
-    alert('✅ Added '+value+' day(s) of '+LEAVE_TYPE_LABELS_EN[leaveCode]+' for '+(staffName||'all staff')+' ('+bsMonth+'/'+bsYear+' B.S.).');
+    alert('✅ Added '+value+' day(s) of '+LEAVE_TYPE_LABELS_EN[leaveCode]+' for '+(staffName||'all staff')+' ('+bsMonth.charAt(0)+bsMonth.slice(1).toLowerCase()+' '+bsYear+' B.S.).');
     loadLeaveAdjustmentsList();
   }catch(e){alert('❌ Could not save — check connection.');}
 }
@@ -4880,9 +4829,17 @@ async function loadLeaveAdjustmentsList(){
     el.innerHTML='<div style="display:flex;flex-direction:column;gap:6px">'+rows.map(r=>{
       const label=LEAVE_TYPE_LABELS_EN[r.leaveCode]||r.leaveCode;
       const who=r.staffName||'All Staff';
-      const desc=r.type==='staff_override'
-        ? who+' — '+label+': '+r.value+' days/year'+(r.bsYear?' ('+r.bsYear+' B.S. only)':' (every year)')
-        : who+' — '+label+': '+(r.value>=0?'+':'')+r.value+' days ('+r.bsMonth+'/'+r.bsYear+' B.S.)'+(r.note?' — '+r.note:'');
+      let desc;
+      if(r.type==='staff_override'){
+        desc=who+' — '+label+': '+r.value+' days/year'+(r.bsYear?' (fiscal year '+r.bsYear+'/'+String(Number(r.bsYear)+1).slice(-2)+' only)':' (every year)');
+      }else{
+        // Stored bsYear is the fiscal year; show the ordinary calendar year the admin actually entered instead.
+        const monthNumMap={BAISHAKH:1,JESTHA:2,ASHAR:3,SHRAWAN:4,BHADRA:5,ASHWIN:6,KARTIK:7,MANGSIR:8,POUSH:9,MAGH:10,FALGUN:11,CHAITRA:12};
+        const mNum=monthNumMap[r.bsMonth]||0;
+        const calYear=mNum&&mNum<=3?Number(r.bsYear)+1:Number(r.bsYear);
+        const monthLabel=r.bsMonth?(r.bsMonth.charAt(0)+r.bsMonth.slice(1).toLowerCase()):r.bsMonth;
+        desc=who+' — '+label+': '+(r.value>=0?'+':'')+r.value+' days ('+monthLabel+' '+(calYear||r.bsYear)+' B.S.)'+(r.note?' — '+r.note:'');
+      }
       return `<div style="display:flex;justify-content:space-between;align-items:center;gap:8px;background:var(--card2);border:1px solid var(--border2);border-radius:var(--radius);padding:8px 10px;font-size:11px">
         <div><span style="color:var(--text3)">${r.type==='staff_override'?'👤 Override':'📅 Grant'}</span> — ${desc}</div>
         <button onclick="deleteLeaveAdjustment('${r.id}')" style="background:none;border:none;color:var(--red);cursor:pointer;font-size:14px;padding:0 4px" title="Delete">🗑️</button>
