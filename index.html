@@ -774,6 +774,39 @@ textarea.fi{resize:vertical;min-height:80px}
       <div id="leave-balance-result"></div>
       <div id="leave-entitlements-editor" style="display:none;margin-top:10px;background:var(--card2);border:1px solid var(--border2);border-radius:var(--radius);padding:12px"></div>
 
+      <!-- Per-staff override: give ONE person a different annual total (extra leave, prorated new hire, etc.) -->
+      <div class="a-card-title" style="margin-top:16px">👤 Per-Staff Leave Adjustment</div>
+      <div class="a-info">Give one specific person a different annual total than the standard entitlement — e.g. extra Sick Leave, or a prorated amount for a new hire.</div>
+      <div style="display:grid;grid-template-columns:1fr;gap:6px;margin:8px 0">
+        <select class="fi" id="lo-staff" style="padding:6px 10px;font-size:12px"><option value="">-- Select staff --</option></select>
+        <div style="display:flex;gap:6px;flex-wrap:wrap">
+          <select class="fi" id="lo-leavecode" style="flex:1;min-width:140px;padding:6px 10px;font-size:12px"></select>
+          <input class="fi" type="number" id="lo-year" placeholder="B.S. Year (blank = every year)" style="width:170px;padding:6px 10px;font-size:12px"/>
+          <input class="fi" type="number" min="0" id="lo-value" placeholder="Total days/year" style="width:120px;padding:6px 10px;font-size:12px"/>
+        </div>
+        <button class="btn-outline" onclick="saveStaffLeaveOverride()" style="padding:6px 12px;font-size:12px">💾 Save Override</button>
+      </div>
+
+      <!-- Monthly grant: add days as they're earned (e.g. Compensatory Leave when a public holiday is worked) -->
+      <div class="a-card-title" style="margin-top:16px">📅 Monthly Leave Grant</div>
+      <div class="a-info">Add (or subtract) days for a specific B.S. month — built for Compensatory Leave, since it's only earned when the government declares a public holiday that month. Leave "Staff" on "All Staff" to grant it to everyone at once.</div>
+      <div style="display:grid;grid-template-columns:1fr;gap:6px;margin:8px 0">
+        <select class="fi" id="lg-staff" style="padding:6px 10px;font-size:12px"><option value="">-- All Staff --</option></select>
+        <div style="display:flex;gap:6px;flex-wrap:wrap">
+          <select class="fi" id="lg-leavecode" style="flex:1;min-width:140px;padding:6px 10px;font-size:12px"></select>
+          <input class="fi" type="number" id="lg-year" placeholder="B.S. Year" style="width:100px;padding:6px 10px;font-size:12px"/>
+          <input class="fi" type="number" min="1" max="12" id="lg-month" placeholder="B.S. Month (1-12)" style="width:130px;padding:6px 10px;font-size:12px"/>
+          <input class="fi" type="number" id="lg-value" placeholder="+/- days" style="width:100px;padding:6px 10px;font-size:12px"/>
+        </div>
+        <input class="fi" type="text" id="lg-note" placeholder="Note (e.g. Dashain holiday)" style="padding:6px 10px;font-size:12px"/>
+        <button class="btn-outline" onclick="saveMonthlyLeaveGrant()" style="padding:6px 12px;font-size:12px">💾 Add Grant</button>
+      </div>
+
+      <!-- Combined list of every override/grant on record, with delete -->
+      <div class="a-card-title" style="margin-top:16px">📋 All Leave Adjustments</div>
+      <button class="btn-outline" onclick="loadLeaveAdjustmentsList()" style="padding:6px 12px;font-size:12px;margin-bottom:8px">🔄 Refresh List</button>
+      <div id="leave-adjustments-list"></div>
+
       <hr style="border-color:var(--border);margin:16px 0"/>
 
       <!-- Excel export -->
@@ -3014,6 +3047,23 @@ const LEAVE_TYPE_LABELS_EN={
   'BIDA-SAT':'Compensatory Leave'
 };
 const LEAVE_TYPE_ORDER=['BIDA-BHP','BIDA-PRB','BIDA-GHR','BIDA-BIR','BIDA-PRS','BIDA-PSY','BIDA-KIR','BIDA-ADH','BIDA-ASA','BIDA-SAT'];
+// Layers a staff member's effective annual entitlement per leave type:
+//   global default → per-staff override (year-specific wins over evergreen) → + monthly grants for that year
+function computeEffectiveEntitlements(defaults,rows,staffName,bsYear){
+  const result=Object.assign({},defaults||{});
+  const yr=String(bsYear);
+  LEAVE_TYPE_ORDER.forEach(code=>{
+    const mine=(rows||[]).filter(r=>r.type==='staff_override'&&r.staffName===staffName&&r.leaveCode===code);
+    const yearMatch=mine.find(r=>r.bsYear===yr);
+    const evergreen=mine.find(r=>!r.bsYear);
+    if(yearMatch)result[code]=yearMatch.value;
+    else if(evergreen)result[code]=evergreen.value;
+  });
+  (rows||[]).filter(r=>r.type==='monthly_grant'&&r.bsYear===yr&&(r.staffName===staffName||!r.staffName)).forEach(g=>{
+    result[g.leaveCode]=(result[g.leaveCode]||0)+g.value;
+  });
+  return result;
+}
 function openMyYearModal(){
   if(!S.user){alert('Please login first');return;}
   document.getElementById('myyear-modal').style.display='flex';
@@ -3028,10 +3078,10 @@ async function loadMyYearSummary(){
   if(bodyEl)bodyEl.innerHTML='<div style="color:var(--text3);font-size:12px;text-align:center;padding:20px">⏳ Loading...</div>';
   if(!S.scriptUrl)return;
   try{
-    if(!S.leaveEntitlementsCache){
-      const eRes=await fetch(S.scriptUrl+'?action=getLeaveEntitlements');
+    if(!S.leaveConfigCache){
+      const eRes=await fetch(S.scriptUrl+'?action=getLeaveConfig');
       const eD=await eRes.json();
-      S.leaveEntitlementsCache=eD.entitlements||{};
+      S.leaveConfigCache={defaults:eD.defaults||{},rows:eD.rows||[]};
     }
     const fRes=await fetch(S.scriptUrl+'?action=getYearFileIds&bsYear='+S.myYearBsYear);
     const fD=await fRes.json();
@@ -3044,7 +3094,8 @@ async function loadMyYearSummary(){
     const wD=await wRes.json();
     const rows=wD.data||[];
     const mine=rows.find(r=>r.name===S.user.name&&r.role===S.user.role)||rows.find(r=>r.name===S.user.name);
-    renderMyYear(mine,S.leaveEntitlementsCache);
+    const effective=computeEffectiveEntitlements(S.leaveConfigCache.defaults,S.leaveConfigCache.rows,S.user.name,S.myYearBsYear);
+    renderMyYear(mine,effective);
   }catch(e){
     if(bodyEl)bodyEl.innerHTML='<div style="color:var(--red);font-size:12px;text-align:center;padding:20px">Could not load — check connection.</div>';
   }
@@ -4651,15 +4702,32 @@ async function exportMonthExcel(fileId,name){
 // ── Leave Balance (by year) — admin view of every staff's usage vs entitlement ──
 function initLeaveBalanceYearInput(){
   const el=document.getElementById('lb-year-input');
-  if(el&&!el.value)el.value=adToBs(todayISO()).bsY;
-}
-async function getLeaveEntitlementsCached(force){
-  if(!S.leaveEntitlementsCache||force){
-    const res=await fetch(S.scriptUrl+'?action=getLeaveEntitlements');
-    const d=await res.json();
-    S.leaveEntitlementsCache=d.entitlements||{};
+  const curYear=adToBs(todayISO()).bsY;
+  if(el&&!el.value)el.value=curYear;
+
+  // Populate the leave-type dropdowns (can't use JS template literals inside static HTML)
+  const codeOptsHtml=LEAVE_TYPE_ORDER.map(c=>`<option value="${c}">${LEAVE_TYPE_LABELS_EN[c]}</option>`).join('');
+  const loCode=document.getElementById('lo-leavecode'); if(loCode&&!loCode.dataset.filled){loCode.innerHTML=codeOptsHtml;loCode.dataset.filled='1';}
+  const lgCode=document.getElementById('lg-leavecode');
+  if(lgCode&&!lgCode.dataset.filled){
+    lgCode.innerHTML=LEAVE_TYPE_ORDER.map(c=>`<option value="${c}"${c==='BIDA-SAT'?' selected':''}>${LEAVE_TYPE_LABELS_EN[c]}</option>`).join('');
+    lgCode.dataset.filled='1';
   }
-  return S.leaveEntitlementsCache;
+  const lgYear=document.getElementById('lg-year'); if(lgYear&&!lgYear.value)lgYear.value=curYear;
+
+  // Populate the staff dropdowns from S.staffFlat
+  const staffOptsHtml=(S.staffFlat||[]).slice().sort((a,b)=>a.name.localeCompare(b.name))
+    .map(s=>`<option value="${s.name}" data-role="${s.role}">${s.name} (${RLABEL[s.role]||s.role}, ${s.section==='avia'?'Aviation':'Weather'})</option>`).join('');
+  const loStaff=document.getElementById('lo-staff'); if(loStaff&&!loStaff.dataset.filled){loStaff.innerHTML='<option value="">-- Select staff --</option>'+staffOptsHtml;loStaff.dataset.filled='1';}
+  const lgStaff=document.getElementById('lg-staff'); if(lgStaff&&!lgStaff.dataset.filled){lgStaff.innerHTML='<option value="">-- All Staff --</option>'+staffOptsHtml;lgStaff.dataset.filled='1';}
+}
+async function getLeaveConfigCached(force){
+  if(!S.leaveConfigCache||force){
+    const res=await fetch(S.scriptUrl+'?action=getLeaveConfig');
+    const d=await res.json();
+    S.leaveConfigCache={defaults:d.defaults||{},rows:d.rows||[]};
+  }
+  return S.leaveConfigCache;
 }
 async function recalcAllSummaries(){
   const statusEl=document.getElementById('recalc-summary-status');
@@ -4692,7 +4760,7 @@ async function runLeaveBalanceReport(){
   const bsYear=parseInt(document.getElementById('lb-year-input').value)||adToBs(todayISO()).bsY;
   el.innerHTML='<div style="color:var(--text3);font-size:12px;margin-top:8px">⏳ Loading '+bsYear+' B.S. roster files...</div>';
   try{
-    const entitlements=await getLeaveEntitlementsCached();
+    const cfg=await getLeaveConfigCached();
     const fRes=await fetch(S.scriptUrl+'?action=getYearFileIds&bsYear='+bsYear);
     const fD=await fRes.json();
     const fileIds=(fD.data||[]).map(f=>f.fileId);
@@ -4709,8 +4777,10 @@ async function runLeaveBalanceReport(){
       </tr></thead><tbody>
       ${rows.map(r=>{
         const lb=r.leaveBreakdown||{};
+        const entitlements=computeEffectiveEntitlements(cfg.defaults,cfg.rows,r.name,bsYear);
+        const hasAdjustment=(cfg.rows||[]).some(row=>row.staffName===r.name||(!row.staffName&&row.type==='monthly_grant'&&row.bsYear===String(bsYear)));
         return`<tr>
-        <td style="padding:6px;border-bottom:1px solid var(--border)">${r.name}</td>
+        <td style="padding:6px;border-bottom:1px solid var(--border)">${r.name}${hasAdjustment?' <span title="Has a custom leave adjustment" style="color:var(--accent)">✦</span>':''}</td>
         <td style="padding:6px;text-align:center;border-bottom:1px solid var(--border)">${RLABEL[r.role]||r.role}</td>
         ${LEAVE_TYPE_ORDER.map(c=>{
           const used=lb[c]||0; const cap=Number(entitlements[c])||0;
@@ -4720,21 +4790,22 @@ async function runLeaveBalanceReport(){
         }).join('')}
       </tr>`;}).join('')}
       </tbody></table></div>
-      <div style="font-size:10px;color:var(--text3);margin-top:8px">Numbers in <span style="color:var(--red);font-weight:700">red</span> mean the staff member has exceeded their annual entitlement for that leave type. "—" columns have no fixed annual cap.</div>`;
+      <div style="font-size:10px;color:var(--text3);margin-top:8px">Numbers in <span style="color:var(--red);font-weight:700">red</span> mean the staff member has exceeded their entitlement for that leave type. "—" columns have no fixed annual cap. <span style="color:var(--accent)">✦</span> next to a name means they have a custom leave adjustment (per-staff override and/or a monthly grant) on top of the standard entitlement.</div>`;
   }catch(e){el.innerHTML='<div style="color:var(--red);font-size:12px;margin-top:8px">Report generation failed.</div>';}
 }
 async function openLeaveEntitlementsEditor(){
   const box=document.getElementById('leave-entitlements-editor');
   if(box.style.display==='block'){box.style.display='none';return;}
-  const entitlements=await getLeaveEntitlementsCached(true);
-  box.innerHTML='<div style="font-size:12px;font-weight:700;color:var(--text2);margin-bottom:10px">⚙️ Annual Leave Entitlements (days/year)</div>'+
+  const cfg=await getLeaveConfigCached(true);
+  const entitlements=cfg.defaults;
+  box.innerHTML='<div style="font-size:12px;font-weight:700;color:var(--text2);margin-bottom:10px">⚙️ Annual Leave Entitlements (days/year) — applies to everyone by default</div>'+
     '<div style="display:grid;grid-template-columns:1fr 90px;gap:8px;align-items:center">'+
     LEAVE_TYPE_ORDER.map(c=>`
       <label style="font-size:12px;color:var(--text2)">${LEAVE_TYPE_LABELS_EN[c]}</label>
       <input class="fi" type="number" min="0" data-lcode="${c}" value="${Number(entitlements[c])||0}" style="padding:6px 8px;font-size:12px"/>
     `).join('')+
     '</div>'+
-    '<div style="font-size:10px;color:var(--text3);margin-top:8px">Set to 0 for leave types with no fixed annual cap (e.g. compensatory, extraordinary, study leave).</div>'+
+    '<div style="font-size:10px;color:var(--text3);margin-top:8px">Set to 0 for leave types with no fixed annual cap (e.g. compensatory, extraordinary, study leave). Need a different number for one specific person instead of everyone? Use "Per-Staff Leave Adjustments" below rather than changing this.</div>'+
     '<button class="btn-green" onclick="saveLeaveEntitlementsFromEditor()" style="width:100%;margin-top:10px;padding:8px;font-size:12px">💾 Save Entitlements</button>';
   box.style.display='block';
 }
@@ -4747,10 +4818,87 @@ async function saveLeaveEntitlementsFromEditor(){
     const res=await fetch(S.scriptUrl,{method:'POST',body:JSON.stringify({action:'saveLeaveEntitlements',entitlements,actorName:S.currentAdmin?.name||'Admin'})});
     const d=await res.json();
     if(d.success===false){alert('❌ '+(d.error||'Save failed.'));return;}
-    S.leaveEntitlementsCache=entitlements;
+    if(S.leaveConfigCache)S.leaveConfigCache.defaults=entitlements;
     box.style.display='none';
     alert('✅ Leave entitlements updated.');
   }catch(e){alert('❌ Could not save — check connection.');}
+}
+async function saveStaffLeaveOverride(){
+  const staffSel=document.getElementById('lo-staff');
+  const staffName=staffSel.value;
+  const staffRole=staffName?(staffSel.selectedOptions[0]?.dataset.role||''):'';
+  const leaveCode=document.getElementById('lo-leavecode').value;
+  const bsYear=document.getElementById('lo-year').value.trim();
+  const value=document.getElementById('lo-value').value;
+  if(!staffName){alert('❌ Please select a staff member');return;}
+  if(value===''||isNaN(parseInt(value))){alert('❌ Please enter the total days/year');return;}
+  try{
+    const res=await fetch(S.scriptUrl,{method:'POST',body:JSON.stringify({
+      action:'saveLeaveOverride',staffName,staffRole,leaveCode,bsYear,value:parseInt(value),
+      actorName:S.currentAdmin?.name||'Admin'
+    })});
+    const d=await res.json();
+    if(d.success===false){alert('❌ '+(d.error||'Save failed.'));return;}
+    document.getElementById('lo-value').value='';
+    S.leaveConfigCache=null; // force a fresh fetch next time anything needs entitlements
+    alert('✅ Saved. '+staffName+"'s "+LEAVE_TYPE_LABELS_EN[leaveCode]+' entitlement is now '+value+' days'+(bsYear?' for '+bsYear+' B.S.':' every year')+'.');
+    loadLeaveAdjustmentsList();
+  }catch(e){alert('❌ Could not save — check connection.');}
+}
+async function saveMonthlyLeaveGrant(){
+  const staffSel=document.getElementById('lg-staff');
+  const staffName=staffSel.value;
+  const staffRole=staffName?(staffSel.selectedOptions[0]?.dataset.role||''):'';
+  const leaveCode=document.getElementById('lg-leavecode').value;
+  const bsYear=document.getElementById('lg-year').value.trim();
+  const bsMonth=document.getElementById('lg-month').value.trim();
+  const value=document.getElementById('lg-value').value;
+  const note=document.getElementById('lg-note').value.trim();
+  if(!bsYear||!bsMonth){alert('❌ Please enter both B.S. year and month');return;}
+  if(value===''||isNaN(parseInt(value))){alert('❌ Please enter the number of days (+/-)');return;}
+  try{
+    const res=await fetch(S.scriptUrl,{method:'POST',body:JSON.stringify({
+      action:'saveLeaveGrant',staffName,staffRole,leaveCode,bsYear,bsMonth,value:parseInt(value),note,
+      actorName:S.currentAdmin?.name||'Admin'
+    })});
+    const d=await res.json();
+    if(d.success===false){alert('❌ '+(d.error||'Save failed.'));return;}
+    document.getElementById('lg-value').value='';
+    document.getElementById('lg-note').value='';
+    S.leaveConfigCache=null;
+    alert('✅ Added '+value+' day(s) of '+LEAVE_TYPE_LABELS_EN[leaveCode]+' for '+(staffName||'all staff')+' ('+bsMonth+'/'+bsYear+' B.S.).');
+    loadLeaveAdjustmentsList();
+  }catch(e){alert('❌ Could not save — check connection.');}
+}
+async function loadLeaveAdjustmentsList(){
+  const el=document.getElementById('leave-adjustments-list');
+  el.innerHTML='<div style="color:var(--text3);font-size:12px">⏳ Loading...</div>';
+  try{
+    const cfg=await getLeaveConfigCached(true);
+    const rows=(cfg.rows||[]).slice().sort((a,b)=>new Date(b.timestamp)-new Date(a.timestamp));
+    if(!rows.length){el.innerHTML='<div style="color:var(--text3);font-size:12px">No per-staff overrides or monthly grants yet.</div>';return;}
+    el.innerHTML='<div style="display:flex;flex-direction:column;gap:6px">'+rows.map(r=>{
+      const label=LEAVE_TYPE_LABELS_EN[r.leaveCode]||r.leaveCode;
+      const who=r.staffName||'All Staff';
+      const desc=r.type==='staff_override'
+        ? who+' — '+label+': '+r.value+' days/year'+(r.bsYear?' ('+r.bsYear+' B.S. only)':' (every year)')
+        : who+' — '+label+': '+(r.value>=0?'+':'')+r.value+' days ('+r.bsMonth+'/'+r.bsYear+' B.S.)'+(r.note?' — '+r.note:'');
+      return `<div style="display:flex;justify-content:space-between;align-items:center;gap:8px;background:var(--card2);border:1px solid var(--border2);border-radius:var(--radius);padding:8px 10px;font-size:11px">
+        <div><span style="color:var(--text3)">${r.type==='staff_override'?'👤 Override':'📅 Grant'}</span> — ${desc}</div>
+        <button onclick="deleteLeaveAdjustment('${r.id}')" style="background:none;border:none;color:var(--red);cursor:pointer;font-size:14px;padding:0 4px" title="Delete">🗑️</button>
+      </div>`;
+    }).join('')+'</div>';
+  }catch(e){el.innerHTML='<div style="color:var(--red);font-size:12px">Could not load — check connection.</div>';}
+}
+async function deleteLeaveAdjustment(id){
+  if(!confirm('Delete this leave adjustment?'))return;
+  try{
+    const res=await fetch(S.scriptUrl,{method:'POST',body:JSON.stringify({action:'deleteLeaveEntitlementRow',id})});
+    const d=await res.json();
+    if(d.success===false){alert('❌ '+(d.error||'Delete failed.'));return;}
+    S.leaveConfigCache=null;
+    loadLeaveAdjustmentsList();
+  }catch(e){alert('❌ Could not delete — check connection.');}
 }
 async function loadAppInstalls(){
   const el=document.getElementById('app-installs-list');
