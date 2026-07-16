@@ -759,9 +759,9 @@ textarea.fi{resize:vertical;min-height:80px}
 
       <!-- Annual leave balance vs entitlement, per staff -->
       <div class="a-card-title">🎯 Leave Balance (by year)</div>
-      <div class="a-info">Automatically pulls every roster file for the chosen fiscal year (Shrawan → next Ashar, matching the government's official year) and compares each staff member's leave usage to their annual entitlement.</div>
+      <div class="a-info">Automatically pulls every roster file for the chosen B.S. year and compares each staff member's leave usage to their annual entitlement.</div>
       <div style="display:flex;gap:8px;align-items:center;margin:8px 0;flex-wrap:wrap">
-        <input class="fi" type="number" id="lb-year-input" style="width:140px;padding:6px 10px;font-size:12px" placeholder="e.g. 2082 (Shrawan start)"/>
+        <input class="fi" type="number" id="lb-year-input" style="width:100px;padding:6px 10px;font-size:12px" placeholder="e.g. 2083"/>
         <button class="btn-outline" onclick="runLeaveBalanceReport()" style="padding:6px 12px;font-size:12px">📊 Load Year</button>
         <button class="btn-outline" onclick="openLeaveEntitlementsEditor()" style="padding:6px 12px;font-size:12px">⚙️ Edit Entitlements</button>
       </div>
@@ -778,7 +778,7 @@ textarea.fi{resize:vertical;min-height:80px}
         <select class="fi" id="lo-staff" style="padding:6px 10px;font-size:12px"><option value="">-- Select staff --</option></select>
         <div style="display:flex;gap:6px;flex-wrap:wrap">
           <select class="fi" id="lo-leavecode" style="flex:1;min-width:140px;padding:6px 10px;font-size:12px"></select>
-          <input class="fi" type="number" id="lo-year" placeholder="Fiscal Year, e.g. 2082 (blank = every year)" style="width:230px;padding:6px 10px;font-size:12px"/>
+          <input class="fi" type="number" id="lo-year" placeholder="B.S. Year (blank = every year)" style="width:170px;padding:6px 10px;font-size:12px"/>
           <input class="fi" type="number" min="0" id="lo-value" placeholder="Total days/year" style="width:120px;padding:6px 10px;font-size:12px"/>
         </div>
         <button class="btn-outline" onclick="saveStaffLeaveOverride()" style="padding:6px 12px;font-size:12px">💾 Save Override</button>
@@ -797,7 +797,6 @@ textarea.fi{resize:vertical;min-height:80px}
         </div>
         <input class="fi" type="text" id="lg-note" placeholder="Note (e.g. Dashain holiday)" style="padding:6px 10px;font-size:12px"/>
         <button class="btn-outline" onclick="saveMonthlyLeaveGrant()" style="padding:6px 12px;font-size:12px">💾 Add Grant</button>
-        <div style="font-size:10px;color:var(--text3)">Enter the ordinary B.S. year shown on the roster for that month (e.g. Ashar 2083) — it's automatically placed into the right fiscal year (Shrawan–Ashar) behind the scenes.</div>
       </div>
 
       <!-- Combined list of every override/grant on record, with delete -->
@@ -1400,10 +1399,6 @@ function bsToAd(bsY,bsM,bsD){
 }
 function toNepali(iso){if(!iso)return'';const{bsY,bsM,bsD}=adToBs(iso);return toNpNum(bsD)+' '+NP_MONTHS[bsM];}
 function getCurrentBsMonth(){const{bsY,bsM}=adToBs(todayISO());return{bsY,bsM};}
-// Nepal's official (fiscal) year runs Shrawan 1 → next Ashar-end, not
-// Baishakh → Chaitra. bsM is 0-indexed (0=Baishakh...3=Shrawan...11=Chaitra).
-function getFiscalYearFor(bsY,bsM){ return bsM>=3 ? bsY : bsY-1; }
-function getCurrentFiscalYear(){ const{bsY,bsM}=adToBs(todayISO()); return getFiscalYearFor(bsY,bsM); }
 function buildBsHeader(bsY,bsM){
   const first=bsToAd(bsY,bsM,1);const last=bsToAd(bsY,bsM,bsMonthDays(bsY,bsM));
   const fa=new Date(first),la=new Date(last);
@@ -3011,10 +3006,10 @@ function openMyYearModal(){
 }
 async function loadMyYearSummary(){
   if(!S.user)return;
-  if(!S.myYearBsYear)S.myYearBsYear=getCurrentFiscalYear();
+  if(!S.myYearBsYear)S.myYearBsYear=adToBs(todayISO()).bsY;
   const titleEl=document.getElementById('myyear-title');
   const bodyEl=document.getElementById('myyear-body');
-  if(titleEl)titleEl.textContent=S.myYearBsYear+'/'+String(S.myYearBsYear+1).slice(-2)+' B.S. (Shrawan–Ashar)';
+  if(titleEl)titleEl.textContent=S.myYearBsYear+' B.S.';
   if(bodyEl)bodyEl.innerHTML='<div style="color:var(--text3);font-size:12px;text-align:center;padding:20px">⏳ Loading...</div>';
   if(!S.scriptUrl)return;
   try{
@@ -3027,7 +3022,7 @@ async function loadMyYearSummary(){
     const fD=await fRes.json();
     const fileIds=(fD.data||[]).map(f=>f.fileId);
     if(!fileIds.length){
-      if(bodyEl)bodyEl.innerHTML='<div style="color:var(--text3);font-size:12px;text-align:center;padding:20px">No roster data found for '+S.myYearBsYear+'/'+String(S.myYearBsYear+1).slice(-2)+' B.S. yet.</div>';
+      if(bodyEl)bodyEl.innerHTML='<div style="color:var(--text3);font-size:12px;text-align:center;padding:20px">No roster data found for '+S.myYearBsYear+' B.S. yet.</div>';
       return;
     }
     const wRes=await fetch(S.scriptUrl+'?action=getWorkloadReport&fileIds='+fileIds.join(','));
@@ -3041,7 +3036,7 @@ async function loadMyYearSummary(){
   }
 }
 function myYearShiftYear(delta){
-  if(!S.myYearBsYear)S.myYearBsYear=getCurrentFiscalYear();
+  if(!S.myYearBsYear)S.myYearBsYear=adToBs(todayISO()).bsY;
   S.myYearBsYear+=delta;
   loadMyYearSummary();
 }
@@ -4642,7 +4637,7 @@ async function exportMonthExcel(fileId,name){
 // ── Leave Balance (by year) — admin view of every staff's usage vs entitlement ──
 function initLeaveBalanceYearInput(){
   const el=document.getElementById('lb-year-input');
-  const curYear=getCurrentFiscalYear();
+  const curYear=adToBs(todayISO()).bsY;
   if(el&&!el.value)el.value=curYear;
 
   // Populate the leave-type dropdowns (can't use JS template literals inside static HTML)
@@ -4661,7 +4656,6 @@ function initLeaveBalanceYearInput(){
     lgMonth.innerHTML=monthNames.map((m,i)=>`<option value="${m}"${i===curBsM?' selected':''}>${m.charAt(0)+m.slice(1).toLowerCase()}</option>`).join('');
     lgMonth.dataset.filled='1';
   }
-  // Grants use the ordinary CALENDAR year of that month (e.g. Ashar 2083), not the fiscal year
   const lgYear=document.getElementById('lg-year'); if(lgYear&&!lgYear.value)lgYear.value=adToBs(todayISO()).bsY;
 
   // Populate the staff dropdowns from S.staffFlat
@@ -4706,7 +4700,7 @@ async function recalcAllSummaries(){
 }
 async function runLeaveBalanceReport(){
   const el=document.getElementById('leave-balance-result');
-  const bsYear=parseInt(document.getElementById('lb-year-input').value)||getCurrentFiscalYear();
+  const bsYear=parseInt(document.getElementById('lb-year-input').value)||adToBs(todayISO()).bsY;
   el.innerHTML='<div style="color:var(--text3);font-size:12px;margin-top:8px">⏳ Loading '+bsYear+' B.S. roster files...</div>';
   try{
     const cfg=await getLeaveConfigCached();
@@ -4831,14 +4825,10 @@ async function loadLeaveAdjustmentsList(){
       const who=r.staffName||'All Staff';
       let desc;
       if(r.type==='staff_override'){
-        desc=who+' — '+label+': '+r.value+' days/year'+(r.bsYear?' (fiscal year '+r.bsYear+'/'+String(Number(r.bsYear)+1).slice(-2)+' only)':' (every year)');
+        desc=who+' — '+label+': '+r.value+' days/year'+(r.bsYear?' ('+r.bsYear+' B.S. only)':' (every year)');
       }else{
-        // Stored bsYear is the fiscal year; show the ordinary calendar year the admin actually entered instead.
-        const monthNumMap={BAISHAKH:1,JESTHA:2,ASHAR:3,SHRAWAN:4,BHADRA:5,ASHWIN:6,KARTIK:7,MANGSIR:8,POUSH:9,MAGH:10,FALGUN:11,CHAITRA:12};
-        const mNum=monthNumMap[r.bsMonth]||0;
-        const calYear=mNum&&mNum<=3?Number(r.bsYear)+1:Number(r.bsYear);
         const monthLabel=r.bsMonth?(r.bsMonth.charAt(0)+r.bsMonth.slice(1).toLowerCase()):r.bsMonth;
-        desc=who+' — '+label+': '+(r.value>=0?'+':'')+r.value+' days ('+monthLabel+' '+(calYear||r.bsYear)+' B.S.)'+(r.note?' — '+r.note:'');
+        desc=who+' — '+label+': '+(r.value>=0?'+':'')+r.value+' days ('+monthLabel+' '+r.bsYear+' B.S.)'+(r.note?' — '+r.note:'');
       }
       return `<div style="display:flex;justify-content:space-between;align-items:center;gap:8px;background:var(--card2);border:1px solid var(--border2);border-radius:var(--radius);padding:8px 10px;font-size:11px">
         <div><span style="color:var(--text3)">${r.type==='staff_override'?'👤 Override':'📅 Grant'}</span> — ${desc}</div>
